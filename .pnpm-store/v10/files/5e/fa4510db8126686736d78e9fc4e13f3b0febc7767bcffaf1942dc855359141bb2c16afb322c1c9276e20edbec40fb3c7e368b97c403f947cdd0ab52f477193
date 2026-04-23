@@ -1,0 +1,794 @@
+// Copyright 2025-2026 the Deno authors. MIT license.
+var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (receiver, state, kind, f) {
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+};
+var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (receiver, state, value, kind, f) {
+    if (kind === "m") throw new TypeError("Private method is not writable");
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+    return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
+};
+var _Sandbox_instances, _a, _Sandbox_client, _Sandbox_fs, _Sandbox_deno, _Sandbox_env, _Sandbox_sandboxId, _Sandbox_token, _Sandbox_org, _Sandbox_sandboxEndpoint, _Sandbox_ready, _Sandbox_debug, _Sandbox_ssh, _Sandbox_url, _Sandbox_initializeSandbox, _Sandbox_exposeVscodeHttp, _VsCode_url, _VsCode_pid, _VsCode_client, _VsCode_status, _VsCode_stdout, _VsCode_stderr;
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+import util from "node:util";
+import { setupAbort } from "./abort.js";
+import { ChildProcess, setupChildProcess } from "./child_process.js";
+import { getSandboxEndpoint, getTokenAndApiEndpoint } from "./client.js";
+import { SandboxCommandBuilder } from "./command/mod.js";
+import { SandboxDenoImpl } from "./deno.js";
+import { SandboxEnvImpl } from "./env.js";
+import { InvalidTimeoutError, InvalidTokenError, SandboxCommandError, SandboxKillError, } from "./errors.js";
+import { SandboxFsImpl } from "./fs.js";
+import { parseMemory } from "./memory.js";
+import { logStreamResources, receiveStream, sendStream } from "./stream.js";
+import { rpcClient, websocketTransport, } from "./transport.js";
+import { privateConstructSymbol } from "./utils.js";
+function normalizePath(path) {
+    if (typeof path === "string")
+        return path;
+    return fileURLToPath(path);
+}
+function parseTimeout(timeout) {
+    if (timeout === undefined || timeout === "session")
+        return undefined;
+    const helpMessage = 'Examples of valid timeout: "session", "600s", "15m"';
+    if (timeout.endsWith("s")) {
+        const sec = Number.parseInt(timeout.replace("s", ""));
+        if (Number.isNaN(sec)) {
+            throw new InvalidTimeoutError(`Invalid timeout: ${timeout}. ${helpMessage}`);
+        }
+        if (sec <= 0) {
+            throw new InvalidTimeoutError("Timeout duration must be positive");
+        }
+        return new Date(Date.now() + sec * 1000);
+    }
+    if (timeout.endsWith("m")) {
+        const min = Number.parseInt(timeout.replace("m", ""));
+        if (Number.isNaN(min)) {
+            throw new InvalidTimeoutError(`Invalid timeout: ${timeout}. ${helpMessage}`);
+        }
+        if (min <= 0) {
+            throw new InvalidTimeoutError("Timeout duration must be positive");
+        }
+        return new Date(Date.now() + min * 60 * 1000);
+    }
+    throw new InvalidTimeoutError(`Invalid timeout: ${timeout}. ${helpMessage}`);
+}
+export { SandboxCommandBuilder, SandboxCommandError };
+/** Represents a sandboxed environment running in Deno Deploy's sandbox
+ * infrastructure.
+ *
+ * Instances of this class can be created using the static
+ * {@linkcode Sandbox.create} and {@linkcode Sandbox.connect} methods.
+ */
+export class Sandbox {
+    /** @internal */
+    constructor(symbol) {
+        _Sandbox_instances.add(this);
+        _Sandbox_client.set(this, void 0);
+        _Sandbox_fs.set(this, void 0);
+        _Sandbox_deno.set(this, void 0);
+        _Sandbox_env.set(this, void 0);
+        _Sandbox_sandboxId.set(this, void 0);
+        _Sandbox_token.set(this, void 0);
+        _Sandbox_org.set(this, void 0);
+        _Sandbox_sandboxEndpoint.set(this, void 0);
+        _Sandbox_ready.set(this, Promise.withResolvers());
+        _Sandbox_debug.set(this, false);
+        _Sandbox_ssh.set(this, void 0);
+        _Sandbox_url.set(this, void 0);
+        /** Run a command through a shell (bash). This does not require splitting the
+         * command into the binary and it's arguments, and supports full shell
+         * expansion.
+         *
+         * If any stdio options are not set to `"piped"`, accessing the corresponding
+         * field on the `ChildProcess` will throw a `TypeError`.
+         *
+         * If `stdin` is set to `"piped"`, the `stdin` {@linkcode WritableStream}
+         * needs to be closed manually.
+         *
+         * @example Run a shell command and get the output
+         *
+         * ```ts
+         * import { Sandbox } from "@deno/sandbox";
+         * await using sandbox = await Sandbox.create();
+         * const result = await sandbox.sh`echo hello`;
+         * console.log(result.stdout); // "hello\n"
+         * ```
+         *
+         * @example Spawn a subprocess and collect its output
+         *
+         * ```ts
+         * import { Sandbox } from "@deno/sandbox";
+         * await using sandbox = await Sandbox.create();
+         * const text = await sandbox.sh`cat /path/to/input/file`.text();
+         * console.log(text);
+         * ```
+         *
+         * @example Spawn a subprocess with a 3s timeout
+         *
+         * ```ts
+         * import { assertEquals } from "jsr:@std/assert";
+         *
+         * await using sandbox = await Sandbox.create();
+         *
+         * const output = await sandbox.sh`sleep 101`
+         *   .signal(AbortSignal.timeout(3000));
+         *
+         * assertEquals(output.status.code, 143);
+         * ```
+         *
+         * @example Run a command with sudo privileges
+         *
+         * ```ts
+         * await using sandbox = await Sandbox.create();
+         * const output = await sandbox.sh`apt update`.sudo();
+         * console.assert(output.status.success);
+         * ```
+         */
+        Object.defineProperty(this, "sh", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: (templateStrings, ...substitutions) => {
+                return new SandboxCommandBuilder(this, templateStrings, substitutions);
+            }
+        });
+        if (symbol !== privateConstructSymbol) {
+            throw new TypeError("Can not call 'Sandbox' constructor directly. Use 'Sandbox.create()' instead.");
+        }
+    }
+    /**
+     * Create a new sandbox with the given options.
+     */
+    static async create(options) {
+        const memoryMb = options?.memory !== undefined ? parseMemory(options.memory) : 1280;
+        const sandbox = await __classPrivateFieldGet(this, _a, "m", _Sandbox_initializeSandbox).call(this, {
+            mode: "create",
+            options: {
+                stop_at_ms: parseTimeout(options?.timeout)?.getTime(),
+                memory_mb: memoryMb,
+                labels: options?.labels,
+                root: options?.root ? { volume: options.root } : undefined,
+                volumes: Object.entries(options?.volumes ?? {}).map(([path, volume]) => ({
+                    volume,
+                    path,
+                })),
+                allow_net: options?.allowNet,
+                secrets: options?.secrets,
+            },
+        }, options ?? {});
+        try {
+            await Promise.all([
+                ...Object.entries(options?.env ?? {}).map(([key, value]) => sandbox.env.set(key, value)),
+                options?.ssh ? sandbox.exposeSsh().then((v) => __classPrivateFieldSet(sandbox, _Sandbox_ssh, v, "f")) : Promise.resolve(),
+                options?.port !== undefined
+                    ? sandbox.exposeHttp({ port: options.port }).then((v) => __classPrivateFieldSet(sandbox, _Sandbox_url, v, "f"))
+                    : Promise.resolve(),
+            ]);
+        }
+        catch (e) {
+            await sandbox.close();
+            throw e;
+        }
+        return sandbox;
+    }
+    static connect(idOrOptions, options) {
+        const id = typeof idOrOptions === "string" ? idOrOptions : idOrOptions.id;
+        options ??= typeof idOrOptions === "string" ? {} : idOrOptions;
+        const region = extractRegionFromSandboxId(id);
+        return __classPrivateFieldGet(this, _a, "m", _Sandbox_initializeSandbox).call(this, { mode: "connect", sandboxId: id }, { ...options, region });
+    }
+    /** The ID of the sandbox. */
+    get id() {
+        return __classPrivateFieldGet(this, _Sandbox_sandboxId, "f");
+    }
+    /** A promise that resolves when the connection to the sandbox is closed. */
+    get closed() {
+        return __classPrivateFieldGet(this, _Sandbox_client, "f").rawTransport.closed;
+    }
+    /** The sandbox's file system API. */
+    get fs() {
+        return __classPrivateFieldGet(this, _Sandbox_fs, "f");
+    }
+    /** Deno related operations namespace. */
+    get deno() {
+        return __classPrivateFieldGet(this, _Sandbox_deno, "f");
+    }
+    /** Environment variable management namespace. */
+    get env() {
+        return __classPrivateFieldGet(this, _Sandbox_env, "f");
+    }
+    /** SSH access info to the sandbox. */
+    get ssh() {
+        return __classPrivateFieldGet(this, _Sandbox_ssh, "f");
+    }
+    /** The URL to access the sandbox via HTTP. */
+    get url() {
+        return __classPrivateFieldGet(this, _Sandbox_url, "f");
+    }
+    /** Low-level way to spawn a child process.
+     *
+     * See also `sandbox.sh` for a simpler high-level API.
+     *
+     * If any stdio options are not set to `"piped"`, accessing the corresponding
+     * field on the `ChildProcess` will throw a `TypeError`.
+     *
+     * If `stdin` is set to `"piped"`, the `stdin` {@linkcode WritableStream}
+     * needs to be closed manually.
+     *
+     * @example Spawn a subprocess and pipe the output to a file
+     *
+     * ```ts
+     * await using sandbox = await Sandbox.create();
+     * const child = await sandbox.spawn("cat", {
+     *   args: [
+     *     "/path/to/input/file",
+     *   ],
+     *   stdin: "null",
+     *   stdout: "piped",
+     * });
+     *
+     * child.stdout!.pipeTo(
+     *   Deno.openSync("output", { write: true, create: true }).writable,
+     * );
+     *
+     * const status = await child.status;
+     * ```
+     *
+     * @example Spawn a subprocess and collect its output
+     *
+     * ```ts
+     * await using sandbox = await Sandbox.create();
+     * const child = await sandbox.spawn("cat", {
+     *   args: [
+     *     "/path/to/input/file",
+     *   ],
+     *   stdout: "piped",
+     *   stderr: "piped",
+     * });
+     * const { status, stdoutText, stderrText } = await child.output();
+     * console.assert(status.success);
+     * console.assert("hello\n" === stdoutText!);
+     * console.assert("world\n" === stderrText!);
+     * ```
+     *
+     * @example Spawn a subprocess with a 3s timeout
+     *
+     * ```ts
+     * import { assertEquals } from "jsr:@std/assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     *
+     * const child = await sandbox.spawn("sleep", {
+     *   args: ["10"],
+     *   signal: AbortSignal.timeout(3000),
+     * });
+     *
+     * const { status } = await child.output();
+     * assertEquals(status.signal, "SIGTERM");
+     * ```
+     */
+    async spawn(command, options = {}) {
+        const { signal, stdin = "null", stdout = "inherit", stderr = "inherit", cwd, ...rest } = options;
+        let stdinStreamId;
+        let stdinStream = null;
+        if (stdin === "piped") {
+            const ts = new TransformStream();
+            stdinStream = ts.writable;
+            stdinStreamId = sendStream(ts.readable.getReader(), __classPrivateFieldGet(this, _Sandbox_client, "f").rawTransport);
+        }
+        const res = await __classPrivateFieldGet(this, _Sandbox_client, "f").call("spawn", {
+            command: normalizePath(command),
+            stdinStreamId,
+            stdout: stdout === "inherit" ? "piped" : stdout,
+            stderr: stderr === "inherit" ? "piped" : stderr,
+            cwd: cwd !== undefined ? normalizePath(cwd) : undefined,
+            ...rest,
+        });
+        if ("error" in res)
+            throw res.error;
+        let stdoutStream = null;
+        let stderrStream = null;
+        if (res.ok.stdoutStreamId !== null) {
+            stdoutStream = maybeInheritStream(stdout, receiveStream(res.ok.stdoutStreamId, __classPrivateFieldGet(this, _Sandbox_client, "f").rawTransport), process.stdout);
+        }
+        if (res.ok.stderrStreamId !== null) {
+            stderrStream = maybeInheritStream(stderr, receiveStream(res.ok.stderrStreamId, __classPrivateFieldGet(this, _Sandbox_client, "f").rawTransport), process.stderr);
+        }
+        const child = new ChildProcess(privateConstructSymbol);
+        setupChildProcess(child, __classPrivateFieldGet(this, _Sandbox_client, "f"), res.ok.pid, stdinStream, stdoutStream, stderrStream);
+        signal?.addEventListener("abort", () => {
+            child.kill().catch(console.error);
+        });
+        return child;
+    }
+    /**
+     * Fetch a resource over HTTP from the sandbox's network.
+     */
+    async fetch(url, init) {
+        const req = new Request(url, {
+            body: init?.body,
+            method: init?.method,
+            headers: init?.headers,
+            redirect: init?.redirect,
+        });
+        let abortId;
+        if (init?.signal) {
+            const abort = setupAbort(__classPrivateFieldGet(this, _Sandbox_client, "f"));
+            init.signal.addEventListener("abort", abort.abortHandler);
+            abortId = abort.abortId;
+        }
+        const res = await __classPrivateFieldGet(this, _Sandbox_client, "f").call("fetch", {
+            url: req.url,
+            method: req.method,
+            headers: Array.from(req.headers.entries()),
+            redirect: req.redirect,
+            abortId,
+            bodyStreamId: req.body
+                ? sendStream(req.body.getReader(), __classPrivateFieldGet(this, _Sandbox_client, "f").rawTransport)
+                : undefined,
+        });
+        if ("error" in res)
+            throw res.error;
+        return new Response(res.ok.bodyStreamId !== null
+            ? receiveStream(res.ok.bodyStreamId, __classPrivateFieldGet(this, _Sandbox_client, "f").rawTransport)
+            : null, {
+            headers: res.ok.headers,
+            status: res.ok.status,
+            statusText: res.ok.statusText,
+        });
+    }
+    /** Closes the sandbox instance. */
+    async close() {
+        await __classPrivateFieldGet(this, _Sandbox_client, "f").rawTransport.close();
+        if (__classPrivateFieldGet(this, _Sandbox_debug, "f")) {
+            logStreamResources();
+        }
+    }
+    /**
+     * Forcibly terminates the sandbox.
+     *
+     * @example
+     * ```ts
+     * const sandbox = await Sandbox.create();
+     * await sandbox.kill();
+     * ```
+     */
+    async kill() {
+        const url = new URL(__classPrivateFieldGet(this, _Sandbox_sandboxEndpoint, "f"));
+        url.pathname = `/api/v3/sandbox/${__classPrivateFieldGet(this, _Sandbox_sandboxId, "f")}`;
+        const headers = { "Authorization": `Bearer ${__classPrivateFieldGet(this, _Sandbox_token, "f")}` };
+        if (__classPrivateFieldGet(this, _Sandbox_org, "f"))
+            headers["X-Deno-Org"] = __classPrivateFieldGet(this, _Sandbox_org, "f");
+        const resp = await fetch(url, {
+            method: "DELETE",
+            headers,
+            // This API call sometimes hangs on Node.js for unknown reasons.
+            // To cancel it instead of waiting for it indefinitely, we explicitly set
+            // a timeout.
+            // See https://github.com/denoland/deployng/issues/2268
+            signal: AbortSignal.timeout(10_000),
+        });
+        if (!resp.ok) {
+            const body = await resp.text();
+            throw new SandboxKillError(resp.status, body);
+        }
+        await this.closed;
+    }
+    /**
+     * Request to extend the timeout of the sandbox by the specified duration.
+     * You can at max extend timeout of a sandbox by 30 minutes at once.
+     *
+     * Please note the extension is not guranteed to be the same as requested time.
+     * You should rely on the returned Date value to know the exact extension time.
+     *
+     * @param timeout The duration to extend the sandbox timeout
+     *
+     * @example
+     * ```ts
+     * const sandbox = await Sandbox.create({ timeout: "5m" });
+     * // Extend timeout by another 5 minutes
+     * let newTimeout: Date = await sandbox.extendTimeout("5m");
+     * // Or extend by 600 seconds
+     * newTimeout = await sandbox.extendTimeout("600s");
+     * ```
+     */
+    async extendTimeout(timeout) {
+        const stopAtDate = parseTimeout(timeout);
+        if (!stopAtDate) {
+            throw new InvalidTimeoutError('Timeout extension requires a specific duration like "10m" or "600s"');
+        }
+        const url = new URL(__classPrivateFieldGet(this, _Sandbox_sandboxEndpoint, "f"));
+        url.pathname = `/api/v3/sandbox/${__classPrivateFieldGet(this, _Sandbox_sandboxId, "f")}`;
+        const headers = {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${__classPrivateFieldGet(this, _Sandbox_token, "f")}`,
+        };
+        if (__classPrivateFieldGet(this, _Sandbox_org, "f")) {
+            headers["X-Deno-Org"] = __classPrivateFieldGet(this, _Sandbox_org, "f");
+        }
+        const resp = await fetch(url, {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({
+                stop_at_ms: stopAtDate.getTime(),
+            }),
+        });
+        if (!resp.ok)
+            throw new Error(`Failed to extend timeout: ${resp.status} ${await resp.text()}`);
+        const data = await resp.json();
+        return new Date(data.stop_at_ms);
+    }
+    /** Disposes the sandbox instance. */
+    [(_Sandbox_client = new WeakMap(), _Sandbox_fs = new WeakMap(), _Sandbox_deno = new WeakMap(), _Sandbox_env = new WeakMap(), _Sandbox_sandboxId = new WeakMap(), _Sandbox_token = new WeakMap(), _Sandbox_org = new WeakMap(), _Sandbox_sandboxEndpoint = new WeakMap(), _Sandbox_ready = new WeakMap(), _Sandbox_debug = new WeakMap(), _Sandbox_ssh = new WeakMap(), _Sandbox_url = new WeakMap(), _Sandbox_instances = new WeakSet(), _Sandbox_initializeSandbox = async function _Sandbox_initializeSandbox(mode, fullOpts) {
+        if (process.versions?.bun) {
+            console.warn("[@deno/sandbox] WARNING: Bun is not supported. Bun's native WebSocket does not support the 'upgrade' event, which is required for sandbox connections. Please use Deno or Node.js instead. See https://github.com/oven-sh/bun/issues/5951");
+        }
+        const { token, org, apiEndpoint } = getTokenAndApiEndpoint(fullOpts);
+        const { sandboxEndpoint } = getSandboxEndpoint(fullOpts);
+        const url = new URL(sandboxEndpoint);
+        url.pathname = mode.mode === "create"
+            ? "/api/v3/sandboxes/create"
+            : `/api/v3/sandbox/${mode.sandboxId}/connect`;
+        const sandbox = new _a(privateConstructSymbol);
+        __classPrivateFieldSet(sandbox, _Sandbox_token, token, "f");
+        __classPrivateFieldSet(sandbox, _Sandbox_org, org, "f");
+        __classPrivateFieldSet(sandbox, _Sandbox_sandboxEndpoint, sandboxEndpoint, "f");
+        __classPrivateFieldSet(sandbox, _Sandbox_debug, fullOpts?.debug ?? false, "f");
+        const transport = websocketTransport({
+            endpoint: url.href.replace(/^http/, "ws"),
+            token,
+            org,
+            config: mode.mode === "create" ? mode.options : undefined,
+            debug: __classPrivateFieldGet(sandbox, _Sandbox_debug, "f"),
+            onReady: (sandboxId) => {
+                __classPrivateFieldSet(sandbox, _Sandbox_sandboxId, sandboxId, "f");
+                __classPrivateFieldGet(sandbox, _Sandbox_ready, "f").resolve();
+            },
+            onError: (error) => {
+                __classPrivateFieldGet(sandbox, _Sandbox_ready, "f").reject(error);
+            },
+        });
+        __classPrivateFieldSet(sandbox, _Sandbox_client, rpcClient(transport), "f");
+        await __classPrivateFieldGet(sandbox, _Sandbox_ready, "f").promise.catch((err) => {
+            if ("code" in err && err.code === "INVALID_TOKEN") {
+                const apiMethod = mode.mode === "create" ? "Sandbox.create" : "Sandbox.connect";
+                throw new InvalidTokenError(`The passed access token is invalid or expired. Create a new organization access token in the Deno Deploy dashboard, and pass it to the '${apiMethod}' API using the 'token' option, or by setting the 'DENO_DEPLOY_TOKEN' environment variable.`);
+            }
+            throw err;
+        });
+        __classPrivateFieldSet(sandbox, _Sandbox_fs, new SandboxFsImpl(__classPrivateFieldGet(sandbox, _Sandbox_client, "f")), "f");
+        __classPrivateFieldSet(sandbox, _Sandbox_deno, new SandboxDenoImpl({
+            sandboxId: __classPrivateFieldGet(sandbox, _Sandbox_sandboxId, "f"),
+            apiEndpoint,
+            token,
+            org,
+            client: __classPrivateFieldGet(sandbox, _Sandbox_client, "f"),
+        }), "f");
+        __classPrivateFieldSet(sandbox, _Sandbox_env, new SandboxEnvImpl(__classPrivateFieldGet(sandbox, _Sandbox_client, "f")), "f");
+        return sandbox;
+    }, Symbol.asyncDispose)]() {
+        return this.close();
+    }
+    /** Publicly expose a HTTP service via a publicly routeable URL.
+     *
+     * NOTE: when you call this API, the target HTTP service will be PUBLICLY
+     * EXPOSED WITHOUT AUTHENTICATION. Anyone with knowledge of the public domain
+     * will be able to send arbitrary requests to the exposed service.
+     *
+     * An exposed service can either be a service listening on an arbitrary HTTP
+     * port, or a JavaScript runtime that can handle HTTP requests. You can expose
+     * a JavaScript runtime before `runtime.httpReady` returns, but any requests
+     * made to the exposed URL before that point may fail.
+     */
+    async exposeHttp(target) {
+        let targetRaw;
+        if (typeof target === "object" && "port" in target) {
+            targetRaw = { port: target.port };
+        }
+        else {
+            targetRaw = { pid: target.pid };
+        }
+        const url = new URL(__classPrivateFieldGet(this, _Sandbox_sandboxEndpoint, "f"));
+        url.pathname = `/api/v3/sandbox/${__classPrivateFieldGet(this, _Sandbox_sandboxId, "f")}/expose/http`;
+        const headers = {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${__classPrivateFieldGet(this, _Sandbox_token, "f")}`,
+        };
+        if (__classPrivateFieldGet(this, _Sandbox_org, "f"))
+            headers["X-Deno-Org"] = __classPrivateFieldGet(this, _Sandbox_org, "f");
+        const resp = await fetch(url, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({}),
+        });
+        if (!resp.ok)
+            throw new Error(`Failed to expose HTTP: ${resp.status} ${await resp.text()}`);
+        const { domain } = await resp.json();
+        const res = await __classPrivateFieldGet(this, _Sandbox_client, "f").call("exposeHttp", { domain, ...targetRaw });
+        if ("error" in res)
+            throw res.error;
+        return `https://${domain}`;
+    }
+    /** Expose an isolate over SSH, allowing access to the isolate's shell.
+     *
+     * NOTE: The SSH connection is authenticated through the 'username' field. This field is populated
+     * with a randomly generated, unique identifier. Anyone with knowledge of the 'username' can
+     * connect to the isolate's shell without further authentication.
+     *
+     * To expose an isolate, and print out the SSH command one can run to connect:
+     *
+     * ```ts
+     * await using sandbox = await Sandbox.create();
+     * const { hostname, username } = await sandbox.exposeSsh();
+     * console.log(`ssh ${username}@${hostname}`);
+     *
+     * // Keep the isolate alive so that the user can connect via SSH and do things.
+     * await new Promise((resolve) => setTimeout(resolve, 100000));
+     * ```
+     *
+     * The 'username' and 'hostname' fields will be populated with the appropriate values for the SSH
+     * connection.
+     */
+    async exposeSsh() {
+        const url = new URL(__classPrivateFieldGet(this, _Sandbox_sandboxEndpoint, "f"));
+        url.pathname = `/api/v3/sandbox/${__classPrivateFieldGet(this, _Sandbox_sandboxId, "f")}/expose/ssh`;
+        const headers = {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${__classPrivateFieldGet(this, _Sandbox_token, "f")}`,
+        };
+        if (__classPrivateFieldGet(this, _Sandbox_org, "f"))
+            headers["X-Deno-Org"] = __classPrivateFieldGet(this, _Sandbox_org, "f");
+        const resp = await fetch(url, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({}),
+        });
+        if (!resp.ok)
+            throw new Error(`Failed to expose SSH: ${resp.status} ${await resp.text()}`);
+        const { hostname, username } = await resp.json();
+        return { hostname, username };
+    }
+    /**
+     * Create a new VSCode instance on the specified path.
+     * The instance will exist until it errors out, it is killed, or the sandbox finishes.
+     * The Deno extension is always installed.
+     *
+     * @experimental This API is unstable and may change in the future
+     *
+     * @example
+     * ```ts
+     * await using sandbox = await Sandbox.create();
+     * const vscode = await sandbox.exposeVscode("/home/app");
+     * console.log(vscode.url);
+     *
+     * // Keep the isolate alive as long as vscode is running
+     * await vscode.status;
+     * ```
+     */
+    async exposeVscode(path = "/home/app", options = {}) {
+        // temporary error until permission issue is resolved
+        if (path === "/") {
+            throw new TypeError("Path cannot be root");
+        }
+        const res = await __classPrivateFieldGet(this, _Sandbox_client, "f").call("vscode", {
+            path,
+            env: {
+                ...options.env ?? {},
+                "DENO_DEPLOY_SANDBOX_TOKEN": __classPrivateFieldGet(this, _Sandbox_token, "f"),
+            },
+            extensions: options.extensions ?? [],
+            disableStopButton: options.disableStopButton,
+            preview: options.preview,
+            editorSettings: options.editorSettings,
+        });
+        if ("error" in res)
+            throw res.error;
+        const url = await __classPrivateFieldGet(this, _Sandbox_instances, "m", _Sandbox_exposeVscodeHttp).call(this, { port: res.ok.port });
+        const stdoutStream = receiveStream(res.ok.stdoutStreamId, __classPrivateFieldGet(this, _Sandbox_client, "f").rawTransport);
+        const stderrStream = receiveStream(res.ok.stderrStreamId, __classPrivateFieldGet(this, _Sandbox_client, "f").rawTransport);
+        const vscode = new VsCode(privateConstructSymbol);
+        setupVsCode(vscode, __classPrivateFieldGet(this, _Sandbox_client, "f"), url, res.ok.pid, stdoutStream, stderrStream);
+        return vscode;
+    }
+    /**
+     * Deploy the contents of the sandbox to the specified app in Deno Deploy platform.
+     *
+     * Alias for {@linkcode SandboxDeno.deploy}.
+     *
+     * @example
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.writeTextFile(
+     *   "main.ts",
+     *   'Deno.serve(() => new Response("Hello, world!"))',
+     * );
+     * const build = await sandbox.deploy("my-deno-app", {
+     *   build: { entrypoint: "main.ts" },
+     * });
+     * console.log(`Deployed revision ID: ${build.id}`);
+     * ```
+     */
+    deploy(app, options = {}) {
+        return __classPrivateFieldGet(this, _Sandbox_deno, "f").deploy(app, options);
+    }
+    /** Custom inspect method */
+    [(_Sandbox_exposeVscodeHttp = 
+    /** @internal Expose vscode HTTP and capture analytics */
+    async function _Sandbox_exposeVscodeHttp(target) {
+        const url = new URL(__classPrivateFieldGet(this, _Sandbox_sandboxEndpoint, "f"));
+        url.pathname = `/api/v3/sandbox/${__classPrivateFieldGet(this, _Sandbox_sandboxId, "f")}/expose/vscode`;
+        const headers = {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${__classPrivateFieldGet(this, _Sandbox_token, "f")}`,
+        };
+        if (__classPrivateFieldGet(this, _Sandbox_org, "f"))
+            headers["X-Deno-Org"] = __classPrivateFieldGet(this, _Sandbox_org, "f");
+        const resp = await fetch(url, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({}),
+        });
+        if (!resp.ok)
+            throw new Error(`Failed to expose vscode: ${resp.status} ${await resp.text()}`);
+        const { domain } = await resp.json();
+        const res = await __classPrivateFieldGet(this, _Sandbox_client, "f").call("exposeHttp", { domain, port: target.port });
+        if ("error" in res)
+            throw res.error;
+        return `https://${domain}`;
+    }, util.inspect.custom)](depth, options) {
+        if (depth < 0)
+            return options.stylize("[Sandbox]", "special");
+        const next = options.depth === null ? null : depth - 1;
+        const params = { id: this.id };
+        if (this.ssh)
+            params.ssh = this.ssh;
+        if (this.url)
+            params.url = this.url;
+        const inner = util.inspect(params, { ...options, depth: next });
+        return "Sandbox " + inner;
+    }
+}
+_a = Sandbox;
+let setupVsCode;
+/**
+ * VSCode instance running in the sandbox
+ *
+ * @experimental This API is unstable and may change in the future
+ */
+export class VsCode {
+    /** @internal */
+    constructor(symbol) {
+        _VsCode_url.set(this, void 0);
+        _VsCode_pid.set(this, void 0);
+        _VsCode_client.set(this, void 0);
+        _VsCode_status.set(this, void 0);
+        _VsCode_stdout.set(this, void 0);
+        _VsCode_stderr.set(this, void 0);
+        if (symbol !== privateConstructSymbol) {
+            throw new Error("Can not construct VSCode instances directly, use 'sandbox.vscode()'");
+        }
+    }
+    /** The URL of the VSCode instance. */
+    get url() {
+        return __classPrivateFieldGet(this, _VsCode_url, "f");
+    }
+    /** The stdout stream of the VSCode instance. */
+    get stdout() {
+        return __classPrivateFieldGet(this, _VsCode_stdout, "f");
+    }
+    /** The stderr stream of the VSCode instance. */
+    get stderr() {
+        return __classPrivateFieldGet(this, _VsCode_stderr, "f");
+    }
+    /** A promise that resolves to a {@linkcode ChildProcessStatus} object when
+     * the vscode instace exits. */
+    get status() {
+        return __classPrivateFieldGet(this, _VsCode_status, "f");
+    }
+    /** Kills the VSCode instance with the given signal, or `SIGTERM` if no signal
+     * is specified. Returns a promise that resolves when the signal has been sent.
+     *
+     * **THIS METHOD DOES NOT WAIT FOR THE INSTANCE TO EXIT.** After calling this
+     * method, you must still wait for the instance to exit using the
+     * {@linkcode VsCode.status} property.
+     */
+    async kill(signal) {
+        const res = await __classPrivateFieldGet(this, _VsCode_client, "f").call("processKill", {
+            pid: __classPrivateFieldGet(this, _VsCode_pid, "f"),
+            signal,
+            vscode: true,
+        });
+        if ("error" in res) {
+            if (typeof res.error === "object" && res.error !== null && "code" in res.error &&
+                res.error.code === "ENOENT")
+                return;
+            throw res.error;
+        }
+    }
+    /** Disposes the VSCode instance. */
+    async [(_VsCode_url = new WeakMap(), _VsCode_pid = new WeakMap(), _VsCode_client = new WeakMap(), _VsCode_status = new WeakMap(), _VsCode_stdout = new WeakMap(), _VsCode_stderr = new WeakMap(), Symbol.asyncDispose)]() {
+        await this.kill();
+        await __classPrivateFieldGet(this, _VsCode_status, "f");
+    }
+    /** Custom inspect method */
+    [util.inspect.custom](depth, options) {
+        if (depth < 0)
+            return options.stylize("[VsCode]", "special");
+        const next = options.depth === null ? null : depth - 1;
+        const params = { url: this.url };
+        const inner = util.inspect(params, { ...options, depth: next });
+        return "VsCode " + inner;
+    }
+}
+(() => {
+    setupVsCode = (vs, client, url, pid, stdoutStream, stderrStream) => {
+        __classPrivateFieldSet(vs, _VsCode_url, url, "f");
+        __classPrivateFieldSet(vs, _VsCode_pid, pid, "f");
+        __classPrivateFieldSet(vs, _VsCode_stdout, stdoutStream, "f");
+        __classPrivateFieldSet(vs, _VsCode_stderr, stderrStream, "f");
+        __classPrivateFieldSet(vs, _VsCode_client, client, "f");
+        __classPrivateFieldSet(vs, _VsCode_status, __classPrivateFieldGet(vs, _VsCode_client, "f").call("processWait", { pid, vscode: true }).then((res) => {
+            if ("error" in res)
+                throw res.error;
+            return {
+                success: res.ok.success,
+                code: res.ok.code,
+                signal: res.ok.signal,
+                oom: !!res.ok.oom,
+            };
+        }), "f");
+        __classPrivateFieldGet(vs, _VsCode_status, "f").catch(() => { });
+    };
+})();
+export function maybeInheritStream(mode, readable, writer) {
+    if (mode === "inherit") {
+        const sink = new WritableStream({
+            write(chunk) {
+                return new Promise((resolve, reject) => {
+                    if (writer.destroyed)
+                        return resolve();
+                    const onError = (err) => {
+                        writer.off("drain", onDrain);
+                        reject(err);
+                    };
+                    const onDrain = () => {
+                        writer.off("error", onError);
+                        resolve();
+                    };
+                    writer.once("error", onError);
+                    const ok = writer.write(chunk);
+                    if (!ok) {
+                        writer.once("drain", onDrain);
+                    }
+                    else {
+                        writer.off("error", onError);
+                        resolve();
+                    }
+                });
+            },
+            // Don't close stdout/stderr when the Readable ends
+            close() { },
+            abort() { },
+        });
+        readable.pipeTo(sink).catch(() => { });
+        return null;
+    }
+    else {
+        return readable;
+    }
+}
+const SANDBOX_ID_REGEXP = /^sbx_([a-z]{3})_[0-9a-hjkmnp-z]{20}$/;
+export function extractRegionFromSandboxId(sandboxId) {
+    const match = SANDBOX_ID_REGEXP.exec(sandboxId);
+    if (!match) {
+        throw new TypeError(`Invalid sandbox ID: ${sandboxId}`);
+    }
+    return match[1];
+}

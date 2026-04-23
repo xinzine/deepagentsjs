@@ -1,0 +1,2 @@
+// Copyright 2025-2026 the Deno authors. MIT license.
+export const privateConstructSymbol = Symbol();

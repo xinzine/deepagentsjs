@@ -1,0 +1,22 @@
+/**
+ * Memory size type that supports both plain numbers (bytes) and human-readable strings.
+ *
+ * Supported formats:
+ * - Plain number: `805306368` (interpreted as bytes)
+ * - Binary units: `"1GiB"`, `"1280MiB"`, `"786432KiB"`
+ * - Decimal units: `"1GB"`, `"1280MB"`, `"805307kB"`
+ *
+ * @example 805306368
+ * @example "1GiB"
+ * @example "1280MiB"
+ */
+export type Memory = number | `${number}GB` | `${number}MB` | `${number}kB` | `${number}GiB` | `${number}MiB` | `${number}KiB`;
+/**
+ * Parse a memory value to MiB (integer).
+ *
+ * @param value - The memory value to parse
+ * @returns The memory size in MiB
+ * @throws {InvalidMemoryError} If the format is invalid or the value is out of range
+ */
+export declare function parseMemory(value: Memory): number;
+//# sourceMappingURL=memory.d.ts.map

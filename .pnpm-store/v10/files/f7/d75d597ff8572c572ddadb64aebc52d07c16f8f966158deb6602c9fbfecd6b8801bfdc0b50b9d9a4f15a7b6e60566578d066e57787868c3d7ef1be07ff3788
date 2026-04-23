@@ -1,0 +1,611 @@
+# @deno/sandbox
+
+Create isolated sandboxes on Deno Deploy to securely run code in a lightweight Linux microVM. You
+can securely run shell scripts, spawn processes, execute JavaScript applications and REPLs, and
+interact with files remotely.
+
+This TypeScript/JavaScript SDK let's you create and manage sandboxes programmatically from Deno or
+Node.js.
+
+> **Note:** Bun is not supported. Bun replaces the `ws` WebSocket library with its own native
+> implementation, which does not support the `upgrade` event required for sandbox connections. See
+> [oven-sh/bun#5951](https://github.com/oven-sh/bun/issues/5951) for details.
+
+## Features
+
+- Create secure, isolated, and ephemeral Linux microVM sandboxes to execute arbitrary code and
+  subprocesses.
+- Run arbitrary shell commands and scripts within the sandbox.
+- Run JavaScript applications and REPLs in the sandbox.
+  - Install NPM and JSR packages in the sandbox.
+  - Execute web framework dev servers like Vite or `next dev`.
+  - Simply execute snippets of JS code, one after the other, maintaining state between snippets
+    (great for progressively generated code from AI agents!)
+- Expose any HTTP endpoints in the sandbox to the public internet via random and secure HTTPS URLs.
+- Get SSH access to the sandbox for interactive debugging.
+- Upload local files or directories into the sandbox.
+- Control sandbox timeout and memory allocation.
+- Restrict sandbox network access to specific hosts/IPs using `allowNet`.
+
+## Installation
+
+```bash
+# Using Deno
+deno add jsr:@deno/sandbox
+
+# Using npm
+npm install @deno/sandbox
+
+# Using pnpm
+pnpm install jsr:@deno/sandbox
+
+# Using yarn
+yarn add jsr:@deno/sandbox
+```
+
+## Runtime Support
+
+This SDK is tested and supported on:
+
+- **Deno**: Latest stable version
+- **Node.js**: Version 24+
+
+Note: The `await using` syntax in the examples requires Node.js 24+. For earlier Node.js versions,
+use `try`/`finally` blocks instead (see [Compatibility note](#compatibility-note-on-await-using)).
+
+## Quick Start
+
+1. Go to the "Sandbox" tab in the [Deno Deploy dashboard](https://console.deno.com).
+
+2. Create an access token and set it as the `DENO_DEPLOY_TOKEN` environment variable.
+
+3. Use the `@deno/sandbox` SDK to create a new sandbox and interact with it.
+
+```js
+import { Sandbox } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create();
+
+await sandbox.sh`ls -lh /`;
+```
+
+## APIs
+
+[View the full API documentation here.](https://jsr.io/@deno/sandbox/doc/~/Sandbox)
+
+## Examples
+
+The snippets below assume `package.json` contains `{ "type": "module" }`, the `@deno/sandbox`
+package is installed, and that `DENO_DEPLOY_TOKEN` env var is set.
+
+### Evaluate a JS snippet
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create();
+
+const result = await sandbox.deno.eval(`
+  const a = 1;
+  const b = 2;
+  a + b;
+`);
+console.log("result:", result);
+```
+
+### Spawn a subprocess, and get buffered output
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create();
+
+const text = await sandbox.sh`pwd`.text();
+console.log("result:", text); // → "/home/sandbox\n"
+```
+
+Tip: for long‑running processes or large output, stream the stdout/stderr.
+
+### Create a package.json, install deps, run a web framework (Express), and expose it publicly
+
+This creates a minimal Express app inside the sandbox, runs it on port 3000, and exposes it publicly
+using `sandbox.exposeHttp()`.
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create();
+
+// 1) Write package.json and server.js in the sandbox
+const PACKAGE_JSON = {
+  name: "sandbox-express-demo",
+  private: true,
+  type: "module",
+  dependencies: { express: "^4.19.2" },
+};
+await sandbox.fs.writeTextFile("package.json", JSON.stringify(PACKAGE_JSON, null, 2));
+
+await sandbox.fs.writeTextFile(
+  "server.js",
+  `import express from 'express';
+const app = express();
+app.get('/', (req, res) => res.send('Hello from Express in @deno/sandbox!'));
+app.get('/time', (req, res) => res.json({ now: new Date().toISOString() }));
+app.listen(3000, () => console.log('listening on :3000'));
+`,
+);
+
+// 2) Install dependencies
+await sandbox.sh`deno install`;
+
+// 3) Start the server
+const server = await sandbox.deno.run({ entrypoint: "server.js" });
+
+// 4) Publish to the internet
+const publicUrl = await sandbox.exposeHttp({ port: 3000 });
+console.log("Public URL:", publicUrl); // e.g. https://<random>.sandbox.deno.net
+
+// Fetch from your local machine to verify
+const resp = await fetch(`${publicUrl}/time`);
+console.log(await resp.json());
+
+// Keep the process alive as long as you need; when done, closing the sandbox
+// will tear it down.
+```
+
+### Get SSH access to the sandbox
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create();
+
+// Get SSH credentials
+const { hostname, username } = await sandbox.exposeSsh();
+console.log(`ssh ${username}@${hostname}`);
+
+// Keep the process alive by sleeping, otherwise the sandbox will be destroyed
+// when the script exits.
+await new Promise((resolve) => setTimeout(resolve, 10 * 60 * 1000)); // 10 minutes
+```
+
+### Interactive JavaScript REPL
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create();
+
+// Start a Deno REPL
+const repl = await sandbox.deno.repl();
+
+// Execute code interactively, maintaining state
+await repl.eval("const x = 42;");
+await repl.eval("const y = 8;");
+const result = await repl.eval("x + y");
+console.log("result:", result); // 50
+```
+
+### VSCode browser instance
+
+```js
+import { Sandbox } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create();
+
+// Start a VSCode instance
+const vscode = await sandbox.exposeVscode();
+
+console.log(vscode.url); // print the url of the running instance
+await vscode.status; // wait until it exits
+```
+
+### Template literal commands with variable interpolation
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create();
+
+// Variables are automatically escaped
+const filename = "file with spaces.txt";
+const content = "Hello, world!";
+await sandbox.sh`echo ${content} > ${filename}`;
+
+// Arrays are expanded to multiple arguments
+const files = ["file1.txt", "file2.txt", "file3.txt"];
+await sandbox.sh`rm ${files}`;
+
+// Get JSON output
+const data = await sandbox.sh`echo '{"count": 42}'`.json<{ count: number }>();
+console.log(data.count); // → 42
+```
+
+### Error handling with noThrow()
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create();
+
+// Commands throw by default on non-zero exit
+try {
+  await sandbox.sh`exit 1`;
+} catch (error) {
+  console.log("Command failed:", error);
+}
+
+// Use noThrow() to handle errors manually
+const result = await sandbox.sh`exit 1`.noThrow();
+console.log("Exit code:", result.status.code); // → 1
+console.log("Success:", result.status.success); // → false
+```
+
+### Command cancellation
+
+```ts
+import { KillController, Sandbox } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create();
+
+// Start a long-running command
+const controller = new KillController();
+const cmd = sandbox.sh`sleep 30`.signal(controller.signal);
+const promise = cmd.text();
+
+// Cancel after 2 seconds
+setTimeout(() => {
+  controller.kill(); // Kill the process
+}, 2000);
+
+try {
+  await promise;
+} catch (error) {
+  console.log("Command was cancelled:", error);
+}
+```
+
+### Access both string and binary output
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create();
+
+// Get both string and binary data
+const result = await sandbox.sh`cat binary-file.png`
+  .stdout("piped");
+console.log("Binary length:", result.stdout!.length);
+console.log("Text length:", result.stdoutText!.length);
+
+// Use the binary data
+import fs from "node:fs";
+fs.writeFileSync("output.png", result.stdout!);
+```
+
+### Error handling with custom error class
+
+```ts
+import { Sandbox, SandboxCommandError } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create();
+
+try {
+  await sandbox.sh`exit 42`;
+} catch (error) {
+  if (error instanceof SandboxCommandError) {
+    console.log("Exit code:", error.code); // → 42
+    console.log("Error message:", error.message);
+  }
+}
+```
+
+### Set environment variables
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create();
+
+// Set environment variables
+await sandbox.env.set("API_KEY", "secret-key-123");
+await sandbox.env.set("NODE_ENV", "production");
+
+// Use them in a script
+const apiKey = await sandbox.sh`echo $API_KEY`.text();
+console.log("API_KEY:", apiKey.trim());
+```
+
+### Stream command output to local file
+
+`child.stdout` is a Web `ReadableStream`. In Node, convert a Node `fs.WriteStream` to a Web
+`WritableStream` to pipe efficiently.
+
+```js
+import { Sandbox } from "@deno/sandbox";
+import fs from "node:fs";
+import { Writable } from "node:stream";
+
+await using sandbox = await Sandbox.create();
+
+// Create a large file in the sandbox
+await sandbox.fs.writeTextFile("big.txt", "#".repeat(5_000_000));
+
+// Stream it out to a local file
+const child = await sandbox.spawn("cat", {
+  args: ["big.txt"],
+  stdout: "piped",
+});
+const file = fs.createWriteStream("./big-local-copy.txt");
+await child.stdout.pipeTo(Writable.toWeb(file));
+
+const status = await child.status;
+console.log("done:", status);
+```
+
+### Upload local files or directories
+
+Copy files from your machine into the sandbox using `sandbox.upload(localPath, sandboxPath)`.
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create();
+
+// Upload a single file to a specific path in the sandbox
+await sandbox.fs.upload("./README.md", "./readme-copy.md");
+
+// Upload a local directory tree into the sandbox current directory
+await sandbox.fs.upload("./my-project", ".");
+```
+
+### Control sandbox timeout
+
+You can control how long your sandbox stays alive using the `timeout` option:
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+// Default: "session" - sandbox shuts down when you close/dispose the client
+await using sandbox = await Sandbox.create({ timeout: "session" });
+```
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+// Duration-based: keep sandbox alive for a specific time period
+// Useful when you want the sandbox to persist after the script exits
+const sandbox = await Sandbox.create({ timeout: "5m" }); // 5 minutes
+const id = sandbox.id;
+// Close the *connection* to the sandbox; the sandbox keeps running
+await sandbox.close();
+
+// Later, reconnect to the same sandbox using its ID
+const reconnected = await Sandbox.connect(id);
+await reconnected.sh`echo 'Still alive!'`;
+
+// You can still forcibly terminate it before its timeout expires
+await reconnected.kill();
+// At this point, the sandbox is no longer reconnectable
+```
+
+Supported duration suffixes: `s` (seconds), `m` (minutes). Examples: `"30s"`, `"5m"`, `"90s"`.
+
+> Need other timeout modes? Contact [deploy@deno.com](mailto:deploy@deno.com).
+
+### Configure sandbox memory
+
+You can customize the amount of memory allocated to your sandbox using the `memory` option. This
+allows you to allocate more resources for memory-intensive workloads or reduce memory for lighter
+tasks.
+
+The `memory` option supports human-readable strings with binary (GiB, MiB, KiB) or decimal (GB, MB,
+kB) units, as well as plain numbers (interpreted as bytes).
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+// Create a sandbox with 1GiB of memory
+await using sandbox = await Sandbox.create({ memory: "1GiB" });
+```
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+// Create a sandbox with 4GiB of memory for memory-intensive workloads
+await using sandbox = await Sandbox.create({ memory: "4GiB" });
+
+// Check available memory
+const memInfo = await sandbox.deno.eval<{ total: number }>("Deno.systemMemoryInfo()");
+console.log("Total memory:", memInfo.total);
+```
+
+Memory limits (may change in the future):
+
+- Minimum: 768 MiB
+- Maximum: 4096 MiB (4 GiB)
+
+The actual available memory inside the sandbox may be slightly less than the configured value due to
+system overhead.
+
+> Want to allocate more memory? Contact [deploy@deno.com](mailto:deploy@deno.com).
+
+### Restrict outbound network access
+
+You can restrict which hosts the sandbox can make outbound network requests to using the `allowNet`
+option. This is useful for security-sensitive environments where you want to limit network access.
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+// Only allow requests to specific hosts
+await using sandbox = await Sandbox.create({
+  allowNet: ["example.com", "*.example.net"],
+});
+
+// Requests to allowed hosts will work
+await sandbox.sh`curl https://example.com`;
+
+// Requests to other hosts will be blocked
+```
+
+Supported patterns:
+
+- Exact hostnames with optional ports: `"example.com"`, `"example.com:80"`
+- Wildcard subdomains with optional ports: `"*.example.com"`, `"*.example.com:443"`
+- IP addresses with optional ports: `"203.0.113.110"`, `"203.0.113.110:80"`
+- IPv6 addresses with optional ports: `"[2001:db8::1]"`, `"[2001:db8::1]:443"`
+
+If `allowNet` is not specified, no network restrictions are applied.
+
+### Secret on the Wire
+
+Set secret environment variables that are never exposed to sandbox code. The real secret values are
+injected on the wire when the sandbox makes HTTPS requests to the specified hosts.
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create({
+  secrets: {
+    OPENAI_API_KEY: {
+      hosts: ["api.openai.com"],
+      value: "sk-proj-your-real-key",
+    },
+    ANTHROPIC_API_KEY: {
+      hosts: ["api.anthropic.com"],
+      value: "sk-ant-your-real-key",
+    },
+  },
+});
+```
+
+### Compatibility note on `await using`
+
+The examples use **Explicit Resource Management** (`await using`), added in Node.js 24.
+
+For Node.js 22/23 or earlier, use `try`/`finally`:
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+const sandbox = await Sandbox.create();
+try {
+  // ... use sandbox ...
+} finally {
+  await sandbox.close();
+}
+```
+
+## App Management Examples
+
+This package also provides the feature of managing Apps in your organization.
+
+### Creating App
+
+```ts
+import { Client } from "@deno/sandbox";
+
+const client = new Client();
+
+const app = await client.apps.create({
+  slug: "my-app-from-sdk",
+});
+
+console.log(app);
+// => {
+//  id: "4416a358-4a5f-45b2-99b5-3ebcb4b63b5f",
+//  slug: "my-app-from-sdk",
+//  updated_at: "2025-11-25T05:29:08.777Z",
+//  created_at: "2025-11-25T05:29:08.777Z"
+// }
+```
+
+### Listing apps
+
+```ts
+import { Client } from "@deno/sandbox";
+
+const client = new Client();
+
+const list = await client.apps.list();
+console.log(list.items); // => this list up to 30 apps (newly updated apps first)
+
+for await (const app of list) {
+  console.log(app); // => this lists the all apps in your organization
+}
+```
+
+### Retrieving an app
+
+```ts
+import { Client } from "@deno/sandbox";
+
+const client = new Client();
+
+// You can get app by either App's slug or UUID
+const appBySlug = await client.apps.get("my-app-from-sdk");
+const appById = await client.apps.get("bec265c1-ed8e-4a7e-ad24-e2465b93be88");
+```
+
+### Updating app info
+
+```ts
+import { Client } from "@deno/sandbox";
+
+const client = new Client();
+
+const updatedApp = await client.apps.update("bec265c1-ed8e-4a7e-ad24-e2465b93be88", {
+  slug: "my-cool-app",
+});
+```
+
+### Deleting an app
+
+```ts
+import { Client } from "@deno/sandbox";
+
+const client = new Client();
+
+// You can delete apps by either App's slug or UUID
+await client.apps.delete("legacy-chaotic-app");
+await client.apps.delete("bec265c1-ed8e-4a7e-ad24-e2465b93be88");
+```
+
+## FAQ
+
+### How do I get a token?
+
+Go to the console at https://console.deno.com and navigate to the `Settings` page where you can find
+`Organization Tokens` section. Create a new token by clicking the `Create a new token` button.
+
+### How does it work?
+
+When creating a new sandbox, the SDK communicates with the Deno Deploy API to provision a secure,
+isolated Linux microVM. The SDK then establishes a secure connection to the sandbox, allowing you to
+interact with it programmatically.
+
+When you're done with the sandbox, you can simply destroy the `Sandbox` object. Doing this will
+automatically shut down the sandbox and free up any resources it was using.
+
+### In which region are my sandboxes running?
+
+You can specify the region where the sandbox will be created when creating a new sandbox:
+
+```ts
+import { Sandbox } from "@deno/sandbox";
+
+await using sandbox = await Sandbox.create({ region: "ams" });
+```
+
+If not specified, the sandbox will be created in the default region.
+
+### What limits do sandboxes have?
+
+Sandboxes have the following limits:
+
+- CPU: 2 vCPU
+- Memory: 768 MiB to 4096 MiB
+- Disk: 10 GiB
+
+Exceeding these limits may result in throttling or termination of your sandbox.

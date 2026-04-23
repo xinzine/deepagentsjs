@@ -1,0 +1,108 @@
+/** The base class for all sandbox SDK errors. */
+export declare abstract class SandboxSdkError extends Error {
+}
+/** Error thrown when a connection to the sandbox cannot be established. */
+export declare class ConnectionEstablishmentError extends SandboxSdkError {
+    /** The HTTP status code associated with the error */
+    status: number;
+    /** The error code associated with the error */
+    code: string;
+    /** The trace ID associated with the error */
+    traceId: string | undefined;
+    /** Constructs a ConnectionEstablishmentError */
+    constructor(status: number, code: string, message: string, traceId?: string);
+}
+/** Error thrown when an RPC error occurs. */
+export declare class RpcError extends SandboxSdkError {
+    /** The RPC error code */
+    code: number;
+    /** Additional data associated with the error */
+    data?: unknown;
+    /** Constructs an RpcError */
+    constructor(code: number, message: string, data?: unknown);
+}
+/** Error thrown when the connection to the sandbox is unexpectedly closed. */
+export declare class ConnectionClosedError extends SandboxSdkError {
+    /** The WebSocket close code (RFC 6455) */
+    code: number | undefined;
+    /** The close reason provided by the server */
+    reason: string | undefined;
+    /** Constructs a ConnectionClosedError */
+    constructor(code?: number, reason?: string);
+}
+/** Error thrown when a command fails. */
+export declare class SandboxCommandError extends Error {
+    readonly code: number;
+    /** Constructs a SandboxCommandError */
+    constructor(message: string, code: number);
+}
+/** Error thrown when an invalid timeout is provided. */
+export declare class InvalidTimeoutError extends SandboxSdkError {
+    /** Constructs an InvalidTimeoutError */
+    constructor(message: string);
+}
+/** Error thrown when an invalid memory value is provided. */
+export declare class InvalidMemoryError extends SandboxSdkError {
+    /** Constructs an InvalidMemoryError */
+    constructor(message: string);
+}
+/** Error thrown when no token is provided. */
+export declare class MissingTokenError extends SandboxSdkError {
+    /** Constructs a MissingTokenError */
+    constructor();
+}
+/** Error thrown when the token is not an organization token and no organization is specified. */
+export declare class MissingOrgError extends SandboxSdkError {
+    /** Constructs a MissingOrgError */
+    constructor();
+}
+/** Error thrown when the API endpoint is invalid. */
+export declare class InvalidApiEndpoint extends SandboxSdkError {
+    /** Constructs a InvalidApiEndpoint */
+    constructor(invalidApiEndpoint: string);
+}
+/** Error thrown when the sandbox endpoint is invalid. */
+export declare class InvalidSandboxEndpoint extends SandboxSdkError {
+    /** Constructs a InvalidSandboxEndpoint */
+    constructor(invalidSandboxEndpoint: string);
+}
+/** Error thrown when an invalid token is provided. */
+export declare class InvalidTokenError extends SandboxSdkError {
+    /** Constructs an InvalidTokenError */
+    constructor(message: string);
+}
+/** Error thrown when killing a sandbox fails. */
+export declare class SandboxKillError extends SandboxSdkError {
+    /** The HTTP status code associated with the error */
+    status: number;
+    /** The response text associated with the error */
+    response: string;
+    /** Constructs a SandboxKillError */
+    constructor(status: number, response: string);
+}
+/** Error thrown when a deployment fails. */
+export declare class DeployError extends SandboxSdkError {
+    /** Constructs a DeployError */
+    constructor(message: string, { cause }?: {
+        cause?: unknown;
+    });
+}
+/** Error thrown when a network error occurs. */
+export declare class NetworkError extends SandboxSdkError {
+    /** Constructs a NetworkError */
+    constructor(message: string, { cause }?: {
+        cause?: unknown;
+    });
+}
+/** Error thrown when an API error occurs. */
+export declare class ApiError extends Error {
+    /** The HTTP status code associated with the error */
+    status: number;
+    /** The error code associated with the error */
+    code: string;
+    /** The trace ID associated with the error */
+    traceId?: string;
+    /** Constructs an ApiError */
+    constructor(status: number, code: string, message: string, traceId?: string);
+}
+//# sourceMappingURL=errors.d.ts.map

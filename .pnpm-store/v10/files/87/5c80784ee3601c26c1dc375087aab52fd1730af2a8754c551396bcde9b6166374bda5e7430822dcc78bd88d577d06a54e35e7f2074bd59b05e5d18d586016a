@@ -1,0 +1,981 @@
+import { type ExpandGlobOptions } from "./deps/jsr.io/@std/fs/1.0.23/expand_glob.js";
+import { type WalkEntry, type WalkOptions } from "./deps/jsr.io/@std/fs/1.0.23/walk.js";
+import { SandboxRpcClient } from "./transport.js";
+export { ExpandGlobOptions, WalkEntry, WalkOptions };
+/** The file system interface for interacting with the sandbox's file system. */
+export interface SandboxFs {
+    /**
+     * Reads and resolves to the entire contents of a file as an array of bytes.
+     * `TextDecoder` can be used to transform the bytes to string if required.
+     * Rejects with an error when reading a directory.
+     *
+     * @example Read a file
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const decoder = new TextDecoder("utf-8");
+     * const data = await sandbox.fs.readFile("hello.txt");
+     * console.log(decoder.decode(data));
+     * ```
+     *
+     * @example Read a file with a 3s timeout
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     *
+     * const decoder = new TextDecoder("utf-8");
+     * const data = await sandbox.fs.readFile(
+     *   "maybe_large_file.txt",
+     *   { signal: AbortSignal.timeout(3000) },
+     * );
+     * console.log(decoder.decode(data));
+     * ```
+     */
+    readFile(path: string | URL, options?: ReadFileOptions): Promise<Uint8Array<ArrayBuffer>>;
+    /**
+     * Write `data` to the given `path`, by default creating a new file if
+     * needed, else overwriting.
+     *
+     * @example Write a file
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const data = new Uint8Array([1, 2, 3]);
+     * await sandbox.fs.writeFile("data1.bin", data);  // overwrite "data.bin" or create it
+     * await sandbox.fs.writeFile("data2.bin", data, { create: false });  // only works if "data2.bin" exists
+     * await sandbox.fs.writeFile("data3.bin", data, { mode: 0o777 });  // set permissions on new file
+     * await sandbox.fs.writeFile("data4.bin", data, { append: true });  // add data to the end of the file
+     * ```
+     *
+     * @example Write a file with a 3s timeout
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     *
+     * const data = new Uint8Array([1, 2, 3]);
+     * await sandbox.fs.writeFile("data.bin", data, { signal: AbortSignal.timeout(3000) });
+     * ```
+     */
+    writeFile(path: string | URL, data: Uint8Array<ArrayBuffer> | ReadableStream<Uint8Array>, options?: WriteFileOptions): Promise<void>;
+    /**
+     * Asynchronously reads and returns the entire contents of a file as an UTF-8
+     *  decoded string. Reading a directory throws an error.
+     *
+     * @example Read a file
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const data = await sandbox.fs.readTextFile("hello.txt");
+     * console.log(data);
+     * ```
+     *
+     * @example Read a file with a 3s timeout
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     *
+     * const data = await sandbox.fs.readTextFile(
+     *   "maybe_large_file.txt",
+     *   { signal: AbortSignal.timeout(3000) },
+     * );
+     * console.log(data);
+     * ```
+     */
+    readTextFile(path: string | URL, options?: ReadFileOptions): Promise<string>;
+    /**
+     * Write string `data` to the given `path`, by default creating a new file if
+     * needed, else overwriting.
+     *
+     * @example Write a file
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.writeTextFile("hello1.txt", "Hello world\n");  // overwrite "hello1.txt" or create it
+     * ```
+     *
+     * @example Write a file with a 3s timeout
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     *
+     * await sandbox.fs.writeTextFile(
+     *   "data.txt",
+     *   "Hello world\n",
+     *   { signal: AbortSignal.timeout(3000) },
+     * );
+     * ```
+     */
+    writeTextFile(path: string | URL, data: string | ReadableStream<string>, options?: WriteFileOptions): Promise<void>;
+    /**
+     * Reads the directory given by `path` and returns an async iterable of
+     * {@linkcode DirEntry}. The order of entries is not guaranteed.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * for await (const dirEntry of sandbox.fs.readDir("/")) {
+     *   console.log(dirEntry.name);
+     * }
+     * ```
+     *
+     * Throws error if `path` is not a directory.
+     */
+    readDir(path: string | URL): AsyncIterable<DirEntry>;
+    /**
+     * Removes the named file or directory.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.remove("/path/to/empty_dir/or/file");
+     * await sandbox.fs.remove("/path/to/populated_dir/or/file", { recursive: true });
+     * ```
+     *
+     * Throws error if permission denied, path not found, or path is a non-empty
+     * directory and the `recursive` option isn't set to `true`.
+     */
+    remove(path: string | URL, options?: RemoveOptions): Promise<void>;
+    /**
+     * Creates a new directory with the specified path.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.mkdir("new_dir");
+     * await sandbox.fs.mkdir("nested/directories", { recursive: true });
+     * await sandbox.fs.mkdir("restricted_access_dir", { mode: 0o700 });
+     * ```
+     *
+     * Defaults to throwing error if the directory already exists.
+     */
+    mkdir(path: string | URL, options?: MkdirOptions): Promise<void>;
+    /**
+     * Renames (moves) `oldpath` to `newpath`. Paths may be files or directories.
+     * If `newpath` already exists and is not a directory, `rename()` replaces it.
+     * OS-specific restrictions may apply when `oldpath` and `newpath` are in
+     * different directories.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.rename("old/path", "new/path");
+     * ```
+     *
+     * On Unix-like OSes, this operation does not follow symlinks at either path.
+     *
+     * It varies between platforms when the operation throws errors, and if so
+     * what they are. It's always an error to rename anything to a non-empty
+     * directory.
+     */
+    rename(oldPath: string | URL, newPath: string | URL): Promise<void>;
+    /**
+     * Resolves to a {@linkcode FileInfo} for the specified `path`. Will always
+     * follow symlinks.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * import assert from "node:assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const fileInfo = await sandbox.fs.stat("hello.txt");
+     * assert(fileInfo.isFile);
+     * ```
+     */
+    stat(path: string | URL): Promise<FileInfo>;
+    /**
+     * Changes the permission of a specific file/directory of specified path.
+     * Ignores the process's umask.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.chmod("hello.txt", 0o755);
+     * ```
+     *
+     * The mode is a sequence of 3 octal numbers. The first/left-most number
+     * specifies the permissions for the owner. The second number specifies the
+     * permissions for the group. The last/right-most number specifies the
+     * permissions for others. For example, with a mode of 0o764, the owner (7)
+     * can read/write/execute, the group (6) can read/write and everyone else (4)
+     * can read only.
+     *
+     * | Number | Description |
+     * | ------ | ----------- |
+     * | 7      | read, write, and execute |
+     * | 6      | read and write |
+     * | 5      | read and execute |
+     * | 4      | read only |
+     * | 3      | write and execute |
+     * | 2      | write only |
+     * | 1      | execute only |
+     * | 0      | no permission |
+     */
+    chmod(path: string | URL, mode: number): Promise<void>;
+    /**
+     * Change owner of a regular file or directory.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.chown("myFile.txt", 1000, 1002);
+     * ```
+     *
+     * @param path path to the file
+     * @param uid user id (UID) of the new owner, or `null` for no change
+     * @param gid group id (GID) of the new owner, or `null` for no change
+     */
+    chown(path: string | URL, uid: number | null, gid: number | null): Promise<void>;
+    /**
+     * Copies the contents and permissions of one file to another specified path,
+     * by default creating a new file if needed, else overwriting. Fails if target
+     * path is a directory or is unwritable.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.copyFile("from.txt", "to.txt");
+     * ```
+     */
+    copyFile(fromPath: string | URL, toPath: string | URL): Promise<void>;
+    /**
+     * Recursively walks through a directory and yields information about each file
+     * and directory encountered.
+     *
+     * This API is mirrored from the `jsr:@std/fs/walk` API.
+     */
+    walk(path: string, options?: WalkOptions): AsyncIterableIterator<WalkEntry>;
+    /**
+     * Returns an async iterator that yields each file path matching the given glob
+     * pattern.
+     *
+     * This API is mirrored from the `jsr:@std/fs/expand_glob` API.
+     */
+    expandGlob(glob: string, options?: ExpandGlobOptions): AsyncIterableIterator<WalkEntry>;
+    /**
+     * Creates a file if none exists or truncates an existing file and resolves to
+     * an instance of {@linkcode FsFile}.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const file = await sandbox.fs.create("/foo/bar.txt");
+     * ```
+     */
+    create(path: string | URL): Promise<FsFile>;
+    /**
+     * Creates `path` as a hard link to `target`.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.link("old/name", "new/name");
+     * ```
+     */
+    link(target: string | URL, path: string | URL): Promise<void>;
+    /**
+     * Resolves to a {@linkcode FileInfo} for the specified `path`. If
+     * `path` is a symlink, information for the symlink will be returned instead
+     * of what it points to.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * import assert from "node:assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const fileInfo = await sandbox.fs.lstat("hello.txt");
+     * assert(fileInfo.isFile);
+     * ```
+     */
+    lstat(path: string | URL): Promise<FileInfo>;
+    /** Creates a new temporary directory in the default directory for temporary
+     * files, unless `dir` is specified. Other optional options include
+     * prefixing and suffixing the directory name with `prefix` and `suffix`
+     * respectively.
+     *
+     * This call resolves to the full path to the newly created directory.
+     *
+     * Multiple programs calling this function simultaneously will create different
+     * directories. It is the caller's responsibility to remove the directory when
+     * no longer needed.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const tempDirName0 = await sandbox.fs.makeTempDir();  // e.g. /tmp/2894ea76
+     * const tempDirName1 = await sandbox.fs.makeTempDir({ prefix: 'my_temp' }); // e.g. /tmp/my_temp339c944d
+     * ```
+     */
+    makeTempDir(options?: {
+        dir?: string;
+        prefix?: string;
+        suffix?: string;
+    }): Promise<string>;
+    /**
+     * Creates a new temporary file in the default directory for temporary
+     * files, unless `dir` is specified.
+     *
+     * Other options include prefixing and suffixing the directory name with
+     * `prefix` and `suffix` respectively.
+     *
+     * This call resolves to the full path to the newly created file.
+     *
+     * Multiple programs calling this function simultaneously will create
+     * different files. It is the caller's responsibility to remove the file when
+     * no longer needed.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const tmpFileName0 = await sandbox.fs.makeTempFile();  // e.g. /tmp/419e0bf2
+     * const tmpFileName1 = await sandbox.fs.makeTempFile({ prefix: 'my_temp' });  // e.g. /tmp/my_temp754d3098
+     * ```
+     */
+    makeTempFile(options?: {
+        dir?: string;
+        prefix?: string;
+        suffix?: string;
+    }): Promise<string>;
+    /**
+     * Open a file and resolve to an instance of {@linkcode FsFile}. The
+     * file does not need to previously exist if using the `create` or `createNew`
+     * open options. The caller may have the resulting file automatically closed
+     * by the runtime once it's out of scope by declaring the file variable with
+     * the `using` keyword.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open("/foo/bar.txt", { read: true, write: true });
+     * // Do work with file
+     * ```
+     *
+     * Alternatively, the caller may manually close the resource when finished with
+     * it.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const file = await sandbox.fs.open("/foo/bar.txt", { read: true, write: true });
+     * // Do work with file
+     * file.close();
+     * ```
+     */
+    open(path: string | URL, options?: OpenOptions): Promise<FsFile>;
+    /** Resolves to the full path destination of the named symbolic link.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.symlink("./test.txt", "./test_link.txt");
+     * const target = await sandbox.fs.readLink("./test_link.txt"); // full path of ./test.txt
+     * ```
+     *
+     * Throws TypeError if called with a hard link.
+     */
+    readLink(path: string | URL): Promise<string>;
+    /**
+     * Resolves to the absolute normalized path, with symbolic links resolved.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * // e.g. given /home/alice/file.txt and current directory /home/alice
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.symlink("file.txt", "symlink_file.txt");
+     * const realPath = await sandbox.fs.realPath("./file.txt");
+     * const realSymLinkPath = await sandbox.fs.realPath("./symlink_file.txt");
+     * console.log(realPath);  // outputs "/home/alice/file.txt"
+     * console.log(realSymLinkPath);  // outputs "/home/alice/file.txt"
+     * ```
+     */
+    realPath(path: string | URL): Promise<string>;
+    /** Creates `path` as a symbolic link to `target`.
+     *
+     * The `options.type` parameter can be set to `"file"`, `"dir"` or `"junction"`.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.symlink("old/name", "new/name");
+     * ```
+     */
+    symlink(target: string | URL, path: string | URL, options?: {
+        type?: "file" | "dir" | "junction";
+    }): Promise<void>;
+    /**
+     * Truncates (or extends) the specified file, to reach the specified `len`.
+     * If `len` is not specified then the entire file contents are truncated.
+     *
+     * ### Truncate the entire file
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.truncate("my_file.txt");
+     * ```
+     *
+     * ### Truncate part of the file
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const file = await sandbox.fs.makeTempFile();
+     * await sandbox.fs.writeTextFile(file, "Hello World");
+     * await sandbox.fs.truncate(file, 7);
+     * const data = await sandbox.fs.readFile(file);
+     * console.log(new TextDecoder().decode(data));  // "Hello W"
+     * ```
+     */
+    truncate(name: string | URL, len?: number): Promise<void>;
+    /**
+     * Retrieve the process umask. If `mask` is provided, sets the process umask.
+     * This call always returns what the umask was before the call.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * console.log(await sandbox.fs.umask());  // e.g. 18 (0o022)
+     * const prevUmaskValue = await sandbox.fs.umask(0o077);  // e.g. 18 (0o022)
+     * console.log(await sandbox.fs.umask());  // e.g. 63 (0o077)
+     * ```
+     */
+    umask(mask?: number): Promise<number>;
+    /**
+     * Changes the access (`atime`) and modification (`mtime`) times of a file
+     * system object referenced by `path`. Given times are either in seconds
+     * (UNIX epoch time) or as `Date` objects.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.utime("myfile.txt", 1556495550, new Date());
+     * ```
+     */
+    utime(path: string | URL, atime: number | Date, mtime: number | Date): Promise<void>;
+    /**
+     * Uploads a file or directory from the local machine to the sandbox.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * // Upload a single file
+     * await sandbox.fs.upload("./source.txt", "./dest.txt");
+     *
+     * // Upload a directory
+     * await sandbox.fs.upload("./source-dir", "./dest-dir");
+     * ```
+     */
+    upload(localPath: string | URL, sandboxPath: string | URL): Promise<void>;
+    /**
+     * Downloads a file or directory from the sandbox to the local machine.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * // Download a single file
+     * await sandbox.fs.download("./source.txt", "./dest.txt");
+     *
+     * // Download a directory
+     * await sandbox.fs.download("./source-dir", "./dest-dir");
+     * ```
+     *
+     * @param sandboxPath path to the file or directory on the sandbox
+     * @param localPath path to the file or directory on local machine
+     */
+    download(sandboxPath: string | URL, localPath: string | URL): Promise<void>;
+}
+/** Options for reading a file. */
+export interface ReadFileOptions {
+    /**
+     * An abort signal to allow cancellation of the file read operation.
+     * If the signal becomes aborted the readFile operation will be stopped
+     * and the promise returned will be rejected with an {@linkcode AbortError}.
+     */
+    signal?: AbortSignal;
+}
+/** Options for writing to a file. */
+export interface WriteFileOptions {
+    /** If set to `true`, will append to a file instead of overwriting previous
+     * contents.
+     *
+     * @default {false} */
+    append?: boolean;
+    /** Sets the option to allow creating a new file, if one doesn't already
+     * exist at the specified path.
+     *
+     * @default {true} */
+    create?: boolean;
+    /** If set to `true`, no file, directory, or symlink is allowed to exist at
+     * the target location. When createNew is set to `true`, `create` is ignored.
+     *
+     * @default {false} */
+    createNew?: boolean;
+    /** Permissions always applied to file. */
+    mode?: number;
+    /** An abort signal to allow cancellation of the file write operation.
+     *
+     * If the signal becomes aborted the write file operation will be stopped
+     * and the promise returned will be rejected with an {@linkcode AbortError}.
+     */
+    signal?: AbortSignal;
+}
+/** Options for creating a directory using {@linkcode SandboxFs.mkdir}. */
+export interface MkdirOptions {
+    /** If set to `true`, will create parent directories if they do not exist. */
+    recursive?: boolean;
+    /** The permissions to use for the new directory. */
+    mode?: number;
+}
+/**
+ * Options which can be set when using {@linkcode SandboxFs.remove}.
+ */
+export interface RemoveOptions {
+    /** If set to `true`, path will be removed even if it's a non-empty directory.
+     *
+     * @default {false} */
+    recursive?: boolean;
+}
+/** Provides information about a file and is returned by
+ * {@linkcode SandboxFs.stat}.
+ */
+export interface FileInfo {
+    /** True if this is info for a regular file. Mutually exclusive to
+     * `FileInfo.isDirectory` and `FileInfo.isSymlink`. */
+    isFile: boolean;
+    /** True if this is info for a regular directory. Mutually exclusive to
+     * `FileInfo.isFile` and `FileInfo.isSymlink`. */
+    isDirectory: boolean;
+    /** True if this is info for a symlink. Mutually exclusive to
+     * `FileInfo.isFile` and `FileInfo.isDirectory`. */
+    isSymlink: boolean;
+    /** The size of the file, in bytes. */
+    size: number;
+    /** The last modification time of the file. */
+    mtime: Date;
+    /** The last access time of the file. */
+    atime: Date;
+    /** The creation time of the file. */
+    birthtime: Date;
+    /** The last change time of the file. */
+    ctime: Date;
+    /** ID of the device containing the file. */
+    dev: number;
+    /** The inode number of the file. */
+    ino: number;
+    /** The underlying raw `st_mode` bits that contain the standard Unix
+     * permissions for this file/directory. */
+    mode: number;
+    /** Number of hard links pointing to this file. */
+    nlink: number;
+    /** User ID of the owner of this file. */
+    uid: number;
+    /** Group ID of the owner of this file. */
+    gid: number;
+    /** Device ID of this file. */
+    rdev: number;
+    /** Blocksize for filesystem I/O. */
+    blksize: number;
+    /** Number of blocks allocated to the file, in 512-byte units. */
+    blocks: number;
+    /**  True if this is info for a block device. */
+    isBlockDevice: boolean;
+    /**  True if this is info for a char device. */
+    isCharDevice: boolean;
+    /**  True if this is info for a fifo. */
+    isFifo: boolean;
+    /**  True if this is info for a socket. */
+    isSocket: boolean;
+}
+/** The seek mode for file operations. */
+export declare enum SeekMode {
+    Start = 0,
+    Current = 1,
+    End = 2
+}
+/** Options for opening a file. */
+export interface OpenOptions {
+    /** Sets the option for read access. This option, when `true`, means that
+     * the file should be read-able if opened.
+     *
+     * @default {true} */
+    read?: boolean;
+    /** Sets the option for write access. This option, when `true`, means that
+     * the file should be write-able if opened. If the file already exists,
+     * any write calls on it will overwrite its contents, by default without
+     * truncating it.
+     *
+     * @default {false} */
+    write?: boolean;
+    /** Sets the option for the append mode. This option, when `true`, means
+     * that writes will append to a file instead of overwriting previous
+     * contents.
+     *
+     * Note that setting `{ write: true, append: true }` has the same effect as
+     * setting only `{ append: true }`.
+     *
+     * @default {false} */
+    append?: boolean;
+    /** Sets the option for truncating a previous file. If a file is
+     * successfully opened with this option set it will truncate the file to `0`
+     * size if it already exists. The file must be opened with write access
+     * for truncate to work.
+     *
+     * @default {false} */
+    truncate?: boolean;
+    /** Sets the option to allow creating a new file, if one doesn't already
+     * exist at the specified path. Requires write or append access to be
+     * used.
+     *
+     * @default {false} */
+    create?: boolean;
+    /** If set to `true`, no file, directory, or symlink is allowed to exist at
+     * the target location. Requires write or append access to be used. When
+     * createNew is set to `true`, create and truncate are ignored.
+     *
+     * @default {false} */
+    createNew?: boolean;
+    /** Permissions to use if creating the file (defaults to `0o666`, before
+     * the process's umask). */
+    mode?: number;
+}
+/** Information about a directory entry returned from
+ * {@linkcode SandboxFs.readDir}.
+ */
+export interface DirEntry {
+    /** The file name of the entry. It is just the entity name and does not
+     * include the full path. */
+    name: string;
+    /** True if this is info for a regular file. Mutually exclusive to
+     * {@linkcode DirEntry.isDirectory} and {@linkcode DirEntry.isSymlink}. */
+    isFile: boolean;
+    /** True if this is info for a regular directory. Mutually exclusive to
+     * {@linkcode DirEntry.isFile} and {@linkcode DirEntry.isSymlink}. */
+    isDirectory: boolean;
+    /** True if this is info for a symlink. Mutually exclusive to
+     * {@linkcode DirEntry.isFile} and {@linkcode DirEntry.isDirectory}. */
+    isSymlink: boolean;
+}
+/** The abstraction for reading and writing files.
+ *
+ * This is the most straight forward way of handling files within the sandbox and is
+ * recommended over using the discrete functions.
+ *
+ * ```ts
+ * import { Sandbox } from "@deno/sandbox";
+ *
+ * await using sandbox = await Sandbox.create();
+ * await using file = await sandbox.fs.open("/foo/bar.txt", { read: true });
+ * const fileInfo = await file.stat();
+ * if (fileInfo.isFile) {
+ *   const buf = new Uint8Array(100);
+ *   const numberOfBytesRead = await file.read(buf);
+ *   const text = new TextDecoder().decode(buf);
+ * }
+ * ```
+ */
+export declare class FsFile implements AsyncDisposable {
+    #private;
+    /** @internal */
+    constructor(symbol: symbol);
+    /** A {@linkcode ReadableStream} instance representing to the byte contents
+     * of the file. This makes it easy to interoperate with other web streams
+     * based APIs.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open("my_file.txt", { read: true });
+     * const decoder = new TextDecoder();
+     * for await (const chunk of file.readable) {
+     *   console.log(decoder.decode(chunk));
+     * }
+     * ```
+     */
+    get readable(): ReadableStream<Uint8Array<ArrayBuffer>>;
+    /** A {@linkcode WritableStream} instance to write the contents of the
+     * file. This makes it easy to interoperate with other web streams based
+     * APIs.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open("my_file.txt", { write: true });
+     * const data = ReadableStream.from(["hello", "world"]);
+     * await data.pipeThrough(new TextEncoderStream()).pipeTo(file.writable);
+     * ```
+     */
+    get writable(): WritableStream<Uint8Array<ArrayBuffer>>;
+    /** Write the contents of the array buffer (`p`) to the file.
+     *
+     * Resolves to the number of bytes written.
+     *
+     * **It is not guaranteed that the full buffer will be written in a single
+     * call.**
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const data = new Uint8Array([1, 2, 3]);
+     * await using file = await sandbox.fs.open("data.bin", { write: true });
+     * const bytesWritten = await file.write(data); // 3
+     * ```
+     */
+    write(p: Uint8Array<ArrayBuffer>): Promise<number>;
+    /** Truncates (or extends) the file to reach the specified `len`. If `len`
+     * is not specified, then the entire file contents are truncated.
+     *
+     * ### Truncate the entire file
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open("my_file.txt", { write: true });
+     * await file.truncate();
+     * ```
+     *
+     * ### Truncate part of the file
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * // if "my_file.txt" contains the text "hello world":
+     * await using file = await sandbox.fs.open("my_file.txt", { write: true });
+     * await file.truncate(7);
+     * const buf = new Uint8Array(100);
+     * await file.read(buf);
+     * const text = new TextDecoder().decode(buf); // "hello w"
+     * ```
+     */
+    truncate(len?: number): Promise<void>;
+    /** Read the file into an array buffer (`p`).
+     *
+     * Resolves to either the number of bytes read during the operation or EOF
+     * (`null`) if there was nothing more to read.
+     *
+     * It is possible for a read to successfully return with `0` bytes. This
+     * does not indicate EOF.
+     *
+     * **It is not guaranteed that the full buffer will be read in a single
+     * call.**
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * // if "/foo/bar.txt" contains the text "hello world":
+     * await using file = await sandbox.fs.open("/foo/bar.txt");
+     * const buf = new Uint8Array(100);
+     * const numberOfBytesRead = await file.read(buf); // 11 bytes
+     * const text = new TextDecoder().decode(buf);  // "hello world"
+     * ```
+     */
+    read(p: Uint8Array<ArrayBufferLike>): Promise<number | null>;
+    /** Seek to the given `offset` under mode given by `whence`. The call
+     * resolves to the new position within the resource (bytes from the start).
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * import { assertEquals } from "jsr:@std/assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open(
+     *   "hello.txt",
+     *   { read: true, write: true, truncate: true, create: true },
+     * );
+     * await file.write(new Uint8Array([0, 1, 2, 3, 4, 5]));
+     *
+     * // advance cursor 2 bytes
+     * const cursorPosition = await file.seek(2, SeekMode.Start);
+     * assertEquals(cursorPosition, 2);
+     * const buf = new Uint8Array(100);
+     * await file.read(buf);
+     * assertEquals(buf, new Uint8Array([2, 3, 4, 5]));
+     * ```
+     *
+     * The seek modes work as follows:
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * import { assertEquals } from "jsr:@std/assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open(
+     *   "hello.txt",
+     *   { read: true, write: true, truncate: true, create: true },
+     * );
+     * await file.write(new Uint8Array([0, 1, 2, 3, 4, 5]));
+     *
+     * // Seek 2 bytes from the start of the file
+     * let cursorPosition = await file.seek(2, SeekMode.Start);
+     * assertEquals(cursorPosition, 2);
+     * // Seek 3 more bytes from the current position
+     * cursorPosition = await file.seek(3, SeekMode.Current);
+     * assertEquals(cursorPosition, 5);
+     * // Seek backwards 4 bytes from the end of the file
+     * cursorPosition = await file.seek(-4, SeekMode.End);
+     * assertEquals(cursorPosition, 2);
+     * ```
+     */
+    seek(offset: number | bigint, whence: SeekMode): Promise<number>;
+    /** Resolves to a {@linkcode FileInfo} for the file.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * import assert from "node:assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open("hello.txt");
+     * const fileInfo = await file.stat();
+     * assert(fileInfo.isFile);
+     * ```
+     */
+    stat(): Promise<FileInfo>;
+    /** Flushes any pending data and metadata operations of the given
+     * file stream to disk.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * import { assertEquals } from "jsr:@std/assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open("data.bin", { write: true });
+     * await file.write(new Uint8Array([0, 1, 2]));
+     * await file.sync();
+     * assertEquals(await sandbox.fs.readFile("data.bin"), new Uint8Array([0, 1, 2]));
+     * ```
+     */
+    sync(): Promise<void>;
+    /** Flushes any pending data operations of the given file stream to disk.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * import { assertEquals } from "jsr:@std/assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open("data.bin", { write: true });
+     * await file.write(new Uint8Array([0, 1, 2]));
+     * await file.syncData();
+     * assertEquals(await sandbox.fs.readFile("data.bin"), new Uint8Array([0, 1, 2]));
+     * ```
+     */
+    syncData(): Promise<void>;
+    /** Changes the access (`atime`) and modification (`mtime`) times of the
+     * file stream resource. Given times are either in seconds (UNIX epoch
+     * time) or as `Date` objects.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open("my_file.txt", { create: true, write: true });
+     * await file.utime(new Date(), new Date());
+     * ```
+     */
+    utime(atime: number | Date, mtime: number | Date): Promise<void>;
+    /** Acquire an advisory file-system lock for the file. */
+    lock(exclusive?: boolean): Promise<void>;
+    /** Release an advisory file-system lock for the file. */
+    unlock(): Promise<void>;
+    /** Close the file. Closing a file when you are finished with it is
+     * important to avoid leaking resources.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const file = await sandbox.fs.open("my_file.txt");
+     * // do work with "file" object
+     * await file.close();
+     * ```
+     */
+    close(): Promise<void>;
+    /** Disposes the file handle. */
+    [Symbol.asyncDispose](): Promise<void>;
+}
+export declare class SandboxFsImpl implements SandboxFs {
+    #private;
+    constructor(client: SandboxRpcClient);
+    readFile(path: string | URL, options?: ReadFileOptions): Promise<Uint8Array<ArrayBuffer>>;
+    writeFile(path: string | URL, data: Uint8Array<ArrayBuffer> | ReadableStream<Uint8Array>, options?: WriteFileOptions): Promise<void>;
+    readTextFile(path: string | URL, options?: ReadFileOptions): Promise<string>;
+    writeTextFile(path: string | URL, data: string | ReadableStream<string>, options?: WriteFileOptions): Promise<void>;
+    readDir(path: string | URL): AsyncIterable<DirEntry>;
+    remove(path: string | URL, options?: RemoveOptions): Promise<void>;
+    mkdir(path: string | URL, options?: MkdirOptions): Promise<void>;
+    rename(oldPath: string | URL, newPath: string | URL): Promise<void>;
+    stat(path: string | URL): Promise<FileInfo>;
+    chmod(path: string | URL, mode: number): Promise<void>;
+    chown(path: string | URL, uid: number | null, gid: number | null): Promise<void>;
+    copyFile(fromPath: string | URL, toPath: string | URL): Promise<void>;
+    walk(path: string, options?: WalkOptions): AsyncIterableIterator<WalkEntry>;
+    expandGlob(glob: string, options?: ExpandGlobOptions): AsyncIterableIterator<WalkEntry>;
+    create(path: string | URL): Promise<FsFile>;
+    link(target: string | URL, path: string | URL): Promise<void>;
+    lstat(path: string | URL): Promise<FileInfo>;
+    makeTempDir(options?: {
+        dir?: string;
+        prefix?: string;
+        suffix?: string;
+    }): Promise<string>;
+    makeTempFile(options?: {
+        dir?: string;
+        prefix?: string;
+        suffix?: string;
+    }): Promise<string>;
+    open(path: string | URL, options?: OpenOptions): Promise<FsFile>;
+    readLink(path: string | URL): Promise<string>;
+    realPath(path: string | URL): Promise<string>;
+    symlink(target: string | URL, path: string | URL, options?: {
+        type?: "file" | "dir" | "junction";
+    }): Promise<void>;
+    truncate(name: string | URL, length?: number): Promise<void>;
+    umask(mask?: number): Promise<number>;
+    utime(path: string | URL, atime: number | Date, mtime: number | Date): Promise<void>;
+    upload(localPath: string | URL, sandboxPath: string | URL): Promise<void>;
+    download(sandboxPath: string | URL, localPath: string | URL): Promise<void>;
+}
+//# sourceMappingURL=fs.d.ts.map

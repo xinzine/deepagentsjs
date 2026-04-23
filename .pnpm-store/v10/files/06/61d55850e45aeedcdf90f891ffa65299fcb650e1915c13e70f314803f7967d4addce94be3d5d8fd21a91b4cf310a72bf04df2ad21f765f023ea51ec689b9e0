@@ -1,0 +1,177 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.WEBSOCKET_STATUS = exports.jsonRpcErrors = exports.jsonRpcMessageSchema = exports.jsonRpcResponseSchema = exports.jsonRpcErrorResponseSchema = exports.jsonRpcResponseErrorDetailSchema = exports.jsonRpcSuccessResponseSchema = exports.jsonRpcNotificationSchema = exports.jsonRpcRequestSchema = void 0;
+// Copyright 2025-2026 the Deno authors. MIT license.
+const zod_1 = require("zod");
+exports.jsonRpcRequestSchema = zod_1.z.object({
+    jsonrpc: zod_1.z.literal("2.0"),
+    id: zod_1.z.union([zod_1.z.string(), zod_1.z.number()]),
+    method: zod_1.z.string(),
+    params: zod_1.z.unknown().optional(),
+});
+exports.jsonRpcNotificationSchema = zod_1.z.object({
+    jsonrpc: zod_1.z.literal("2.0"),
+    method: zod_1.z.string(),
+    params: zod_1.z.unknown().optional(),
+});
+exports.jsonRpcSuccessResponseSchema = zod_1.z.object({
+    jsonrpc: zod_1.z.literal("2.0"),
+    id: zod_1.z.union([zod_1.z.string(), zod_1.z.number()]),
+    result: zod_1.z.unknown(),
+});
+exports.jsonRpcResponseErrorDetailSchema = zod_1.z.object({
+    code: zod_1.z.number(),
+    message: zod_1.z.string(),
+    data: zod_1.z.unknown().optional(),
+});
+exports.jsonRpcErrorResponseSchema = zod_1.z.object({
+    jsonrpc: zod_1.z.literal("2.0"),
+    id: zod_1.z.union([zod_1.z.string(), zod_1.z.number()]),
+    error: exports.jsonRpcResponseErrorDetailSchema,
+});
+exports.jsonRpcResponseSchema = zod_1.z.union([
+    exports.jsonRpcSuccessResponseSchema,
+    exports.jsonRpcErrorResponseSchema,
+]);
+exports.jsonRpcMessageSchema = zod_1.z.union([
+    exports.jsonRpcRequestSchema,
+    exports.jsonRpcSuccessResponseSchema,
+    exports.jsonRpcErrorResponseSchema,
+    exports.jsonRpcNotificationSchema,
+]);
+exports.jsonRpcErrors = {
+    // Custom errors
+    "WEBSOCKET_CLOSED": {
+        code: 1,
+        message: "WebSocket connection closed",
+    },
+    "ABORTED": {
+        code: 2,
+        message: "Request aborted",
+    },
+    "ISOLATE_INTERNAL_ERROR": {
+        code: 3,
+        message: "Isolate internal error",
+    },
+    // Reserved errors
+    "PARSE_ERROR": {
+        code: -32700,
+        message: "Parse error",
+    },
+    "INVALID_REQUEST": {
+        code: -32600,
+        message: "Invalid Request",
+    },
+    "METHOD_NOT_FOUND": {
+        code: -32601,
+        message: "Method not found",
+    },
+    "INVALID_PARAMS": {
+        code: -32602,
+        message: "Invalid params",
+    },
+    "INTERNAL_ERROR": {
+        code: -32603,
+        message: "Internal error",
+    },
+    "SERVER_ERROR": {
+        code: -32000,
+        message: "Server error",
+    },
+};
+/** https://www.rfc-editor.org/rfc/rfc6455.html#section-7.4.1 */
+exports.WEBSOCKET_STATUS = {
+    // protocol defined status codes start here
+    /**
+     * 1000 indicates a normal closure, meaning that the purpose for
+     * which the connection was established has been fulfilled.
+     */
+    NORMAL_CLOSURE: 1000,
+    /**
+     * 1001 indicates that an endpoint is "going away", such as a server
+     * going down or a browser having navigated away from a page.
+     */
+    GOING_AWAY: 1001,
+    /**
+     * 1002 indicates that an endpoint is terminating the connection due
+     * to a protocol error.
+     */
+    PROTOCOL_ERROR: 1002,
+    /**
+     * 1003 indicates that an endpoint is terminating the connection
+     * because it has received a type of data it cannot accept (e.g., an
+     * endpoint that understands only text data MAY send this if it
+     * receives a binary message).
+     */
+    UNSUPPORTED_DATA: 1003,
+    /**
+     * 1005 is a reserved value and MUST NOT be set as a status code in a
+     * Close control frame by an endpoint. It is designated for use in
+     * applications expecting a status code to indicate that no status
+     * code was actually present.
+     */
+    NO_STATUS_RECEIVED: 1005,
+    /**
+     * 1006 is a reserved value and MUST NOT be set as a status code in a
+     * Close control frame by an endpoint. It is designated for use in
+     * applications expecting a status code to indicate that the
+     * connection was closed abnormally, e.g., without sending or
+     * receiving a Close control frame.
+     */
+    ABNORMAL_CLOSURE: 1006,
+    /**
+     * 1007 indicates that an endpoint is terminating the connection
+     * because it has received data within a message that was not
+     * consistent with the type of the message (e.g., non-UTF-8 data
+     * within a text message).
+     */
+    INVALID_FRAME_PAYLOAD_DATA: 1007,
+    /**
+     * 1008 indicates that an endpoint is terminating the connection
+     * because it has received a message that violates its policy. This
+     * is a generic status code that can be returned when there is no
+     * other more suitable status code (e.g., 1003 or 1009) or if there
+     * is a need to hide specific details about the policy.
+     */
+    POLICY_VIOLATION: 1008,
+    /**
+     * 1009 indicates that an endpoint is terminating the connection
+     * because it has received a message that is too big for it to
+     * process.
+     */
+    MESSAGE_TOO_BIG: 1009,
+    /**
+     * 1010 indicates that an endpoint (client) is terminating the
+     * connection because it has expected the server to negotiate one or
+     * more extension, but the server didn't return them in the response
+     * message of the WebSocket handshake. Note that this status code is
+     * not used by the server, because it can fail the WebSocket handshake
+     * instead.
+     */
+    MANDATORY_EXT: 1010,
+    /**
+     * 1011 indicates that a server is terminating the connection because
+     * it encountered an unexpected condition that prevented it from
+     * fulfilling the request.
+     */
+    INTERNAL_SERVER_ERROR: 1011,
+    /**
+     * 1015 is a reserved value and MUST NOT be set as a status code in a
+     * Close control frame by an endpoint. It is designated for use in
+     * applications expecting a status code to indicate that the
+     * connection was closed due to a failure to perform a TLS handshake
+     * (e.g., the server certificate can't be verified).
+     */
+    __RESERVED: 1015,
+    // application defined status codes start here
+    /**
+     * 4000 indicates that the connection was closed because the peer
+     * sent an invalid message that can't be parsed with the JSON parser.
+     */
+    INVALID_JSON: 4000,
+    /**
+     * 4001 indicates that the connection was closed because the peer
+     * sent an invalid message that doesn't fit into the JSON-RPC format.
+     */
+    INVALID_JSON_RPC: 4001,
+};

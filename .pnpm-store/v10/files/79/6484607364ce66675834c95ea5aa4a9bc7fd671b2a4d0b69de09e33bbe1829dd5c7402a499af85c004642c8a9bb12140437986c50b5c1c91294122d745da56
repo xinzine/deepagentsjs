@@ -1,0 +1,230 @@
+// Copyright 2025-2026 the Deno authors. MIT license.
+import { errorize, streamCancelSchema as streamCancelSchema, streamEndSchema, streamEnqueueSchema, streamErrorSchema, streamStartSchema, } from "./schema.js";
+const inboundStreamsForPickup = new Map();
+const createdControllersForPickup = new Map();
+const inboundStreamControllers = new Map();
+let nextStreamId = 0;
+const outboundStreamCancelHandles = new Map();
+export function logStreamResources() {
+    console.log({
+        inboundStreamsForPickupKeys: Array.from(inboundStreamsForPickup.keys()),
+        createdControllersForPickupKeys: Array.from(createdControllersForPickup.keys()),
+        inboundStreamControllersKeys: Array.from(inboundStreamControllers.keys()),
+        outboundStreamCancelHandlesKeys: Array.from(outboundStreamCancelHandles.keys()),
+        nextStreamId,
+    });
+}
+export function sendStream(reader, transport) {
+    const streamId = nextStreamId++;
+    let cancelled = false;
+    outboundStreamCancelHandles.set(streamId, (reason) => {
+        cancelled = true;
+        reader.cancel(reason);
+    });
+    transport.notify({
+        jsonrpc: "2.0",
+        method: "$sandbox.stream.start",
+        params: streamStartSchema.encode({ streamId }),
+    });
+    (async () => {
+        try {
+            while (true) {
+                const { value: chunk, done } = await reader.read();
+                if (cancelled)
+                    return;
+                if (done) {
+                    outboundStreamCancelHandles.delete(streamId);
+                    const params = streamEndSchema.encode({ streamId });
+                    transport.notify({ jsonrpc: "2.0", method: "$sandbox.stream.end", params });
+                    return;
+                }
+                const params = streamEnqueueSchema.encode({
+                    streamId,
+                    data: chunk,
+                });
+                transport.notify({ jsonrpc: "2.0", method: "$sandbox.stream.enqueue", params });
+            }
+        }
+        catch (err) {
+            if (cancelled)
+                return;
+            outboundStreamCancelHandles.delete(streamId);
+            const error = errorize(err);
+            const params = streamErrorSchema.encode({ streamId, error });
+            transport.notify({ jsonrpc: "2.0", method: "$sandbox.stream.error", params });
+        }
+    })().catch(() => { });
+    return streamId;
+}
+export function receiveStream(streamId, transport) {
+    const existingStream = inboundStreamsForPickup.get(streamId);
+    if (existingStream) {
+        // A stream with a particular ID should be retrieved only once - we transfer
+        // its ownership to the caller to avoid resource leaks.
+        inboundStreamsForPickup.delete(streamId);
+        return existingStream;
+    }
+    return new ReadableStream({
+        start(controller) {
+            createdControllersForPickup.set(streamId, controller);
+        },
+        cancel(r) {
+            const reason = errorize(r);
+            transport.notify({
+                jsonrpc: "2.0",
+                method: "$sandbox.stream.cancel",
+                params: streamCancelSchema.encode({ streamId, reason }),
+            });
+        },
+        type: "bytes",
+    });
+}
+export function maybeHandleStreamMessage(message, transport) {
+    switch (message.method) {
+        case "$sandbox.stream.start": {
+            let params;
+            try {
+                params = streamStartSchema.parse(message.params);
+            }
+            catch (error) {
+                console.error("Invalid stream start params:", error);
+                return true;
+            }
+            const controller = createdControllersForPickup.get(params.streamId);
+            if (controller) {
+                createdControllersForPickup.delete(params.streamId);
+                inboundStreamControllers.set(params.streamId, controller);
+            }
+            else {
+                const stream = new ReadableStream({
+                    start(controller) {
+                        inboundStreamControllers.set(params.streamId, controller);
+                    },
+                    cancel(reason) {
+                        transport.notify({
+                            jsonrpc: "2.0",
+                            method: "$sandbox.stream.cancel",
+                            params: streamCancelSchema.encode({ streamId: params.streamId, reason }),
+                        });
+                    },
+                    type: "bytes",
+                });
+                inboundStreamsForPickup.set(params.streamId, stream);
+            }
+            return true;
+        }
+        case "$sandbox.stream.enqueue": {
+            let params;
+            try {
+                params = streamEnqueueSchema.parse(message.params);
+            }
+            catch (error) {
+                console.error("Invalid stream enqueue params:", error);
+                return true;
+            }
+            const controller = inboundStreamControllers.get(params.streamId);
+            if (!controller) {
+                console.debug("Received stream enqueue for stream ID which does not exist:", params.streamId);
+                return true;
+            }
+            try {
+                controller.enqueue(params.data);
+            }
+            catch (error) {
+                // Get into this case if, for instance, the operation is aborted.
+                console.error("Error enqueuing stream data:", error);
+                controller.error(error);
+                return false;
+            }
+            return true;
+        }
+        case "$sandbox.stream.end": {
+            let params;
+            try {
+                params = streamEndSchema.parse(message.params);
+            }
+            catch (error) {
+                console.error("Invalid stream end params:", error);
+                return true;
+            }
+            const controller = inboundStreamControllers.get(params.streamId);
+            if (!controller) {
+                console.debug("Received stream end for stream ID which does not exist:", params.streamId);
+                return true;
+            }
+            inboundStreamControllers.delete(params.streamId);
+            controller.close();
+            return true;
+        }
+        case "$sandbox.stream.error": {
+            let params;
+            try {
+                params = streamErrorSchema.parse(message.params);
+            }
+            catch (error) {
+                console.error("Invalid stream end params:", error);
+                return true;
+            }
+            const controller = inboundStreamControllers.get(params.streamId);
+            if (!controller) {
+                console.debug("Received stream error for stream ID which does not exist:", params.streamId);
+                return true;
+            }
+            inboundStreamControllers.delete(params.streamId);
+            controller.error(params.error);
+            return true;
+        }
+        case "$sandbox.stream.cancel": {
+            let params;
+            try {
+                params = streamCancelSchema.parse(message.params);
+            }
+            catch (error) {
+                console.error("Invalid stream end params:", error);
+                return true;
+            }
+            const cancelHandle = outboundStreamCancelHandles.get(params.streamId);
+            if (cancelHandle) {
+                cancelHandle(params.reason);
+                outboundStreamCancelHandles.delete(params.streamId);
+            }
+            else {
+                console.debug("Received stream cancel for stream ID which does not exist:", params.streamId);
+            }
+            return true;
+        }
+        default:
+            return false;
+    }
+}
+/** Parses Server-Sent Events (SSE) data from a stream of strings. */
+export class SseParseStream extends TransformStream {
+    constructor() {
+        let buffer = "";
+        const getData = (eventBlock) => eventBlock
+            .split("\n")
+            .filter((line) => line.startsWith("data:"))
+            .map((line) => line.slice(5).trimStart())
+            .join("\n") || null;
+        super({
+            transform(chunk, controller) {
+                buffer += chunk;
+                // Split events by double newlines
+                const events = buffer.split("\n\n");
+                buffer = events.pop(); // Keep the last partial event in the buffer
+                for (const eventBlock of events) {
+                    const data = getData(eventBlock);
+                    if (data)
+                        controller.enqueue(data);
+                }
+            },
+            flush(controller) {
+                if (buffer.trim() !== "") {
+                    const data = getData(buffer);
+                    if (data)
+                        controller.enqueue(data);
+                }
+            },
+        });
+    }
+}

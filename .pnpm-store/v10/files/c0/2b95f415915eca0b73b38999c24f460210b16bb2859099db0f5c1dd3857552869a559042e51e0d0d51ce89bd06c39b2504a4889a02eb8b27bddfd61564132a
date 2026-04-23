@@ -1,0 +1,6 @@
+import type { SandboxRpcClient } from "./transport.js";
+export declare function setupAbort(rpcClient: SandboxRpcClient): {
+    abortId: number;
+    abortHandler: () => Promise<void>;
+};
+//# sourceMappingURL=abort.d.ts.map

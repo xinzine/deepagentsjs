@@ -1,0 +1,816 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (receiver, state, kind, f) {
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+};
+var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (receiver, state, value, kind, f) {
+    if (kind === "m") throw new TypeError("Private method is not writable");
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+    return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
+};
+var _FsFile_fileHandleId, _FsFile_client, _FsFile_closed, _SandboxFsImpl_instances, _SandboxFsImpl_client, _SandboxFsImpl_uploadSymlink, _SandboxFsImpl_uploadDirectory, _SandboxFsImpl_uploadFile, _SandboxFsImpl_downloadSymlink, _SandboxFsImpl_downloadDirectory, _SandboxFsImpl_downloadFile;
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SandboxFsImpl = exports.FsFile = exports.SeekMode = void 0;
+// Copyright 2025-2026 the Deno authors. MIT license.
+const dntShim = __importStar(require("./_dnt.shims.js"));
+const walk_js_1 = require("./deps/jsr.io/@std/fs/1.0.23/walk.js");
+const dirname_js_1 = require("./deps/jsr.io/@std/path/1.1.4/dirname.js");
+const join_js_1 = require("./deps/jsr.io/@std/path/1.1.4/join.js");
+const relative_js_1 = require("./deps/jsr.io/@std/path/1.1.4/relative.js");
+const node_url_1 = require("node:url");
+const abort_js_1 = require("./abort.js");
+const stream_js_1 = require("./stream.js");
+const utils_js_1 = require("./utils.js");
+/** The seek mode for file operations. */
+var SeekMode;
+(function (SeekMode) {
+    SeekMode[SeekMode["Start"] = 0] = "Start";
+    SeekMode[SeekMode["Current"] = 1] = "Current";
+    SeekMode[SeekMode["End"] = 2] = "End";
+})(SeekMode || (exports.SeekMode = SeekMode = {}));
+let setupFsFile;
+/** The abstraction for reading and writing files.
+ *
+ * This is the most straight forward way of handling files within the sandbox and is
+ * recommended over using the discrete functions.
+ *
+ * ```ts
+ * import { Sandbox } from "@deno/sandbox";
+ *
+ * await using sandbox = await Sandbox.create();
+ * await using file = await sandbox.fs.open("/foo/bar.txt", { read: true });
+ * const fileInfo = await file.stat();
+ * if (fileInfo.isFile) {
+ *   const buf = new Uint8Array(100);
+ *   const numberOfBytesRead = await file.read(buf);
+ *   const text = new TextDecoder().decode(buf);
+ * }
+ * ```
+ */
+class FsFile {
+    /** @internal */
+    constructor(symbol) {
+        _FsFile_fileHandleId.set(this, void 0);
+        _FsFile_client.set(this, void 0);
+        _FsFile_closed.set(this, false);
+        if (symbol !== utils_js_1.privateConstructSymbol) {
+            throw new TypeError("Can not construct FsFile, use 'sandbox.fs.open()' or 'sandbox.fs.create()'.");
+        }
+    }
+    /** A {@linkcode ReadableStream} instance representing to the byte contents
+     * of the file. This makes it easy to interoperate with other web streams
+     * based APIs.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open("my_file.txt", { read: true });
+     * const decoder = new TextDecoder();
+     * for await (const chunk of file.readable) {
+     *   console.log(decoder.decode(chunk));
+     * }
+     * ```
+     */
+    get readable() {
+        const fileHandleId = __classPrivateFieldGet(this, _FsFile_fileHandleId, "f");
+        const client = __classPrivateFieldGet(this, _FsFile_client, "f");
+        return new ReadableStream({
+            async pull(controller) {
+                const res = await client.call("fileRead", { fileHandleId, length: 65536 });
+                if ("error" in res) {
+                    controller.error(res.error);
+                    return;
+                }
+                if (res.ok.data === null) {
+                    controller.close();
+                }
+                else {
+                    controller.enqueue(res.ok.data);
+                }
+            },
+        });
+    }
+    /** A {@linkcode WritableStream} instance to write the contents of the
+     * file. This makes it easy to interoperate with other web streams based
+     * APIs.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open("my_file.txt", { write: true });
+     * const data = ReadableStream.from(["hello", "world"]);
+     * await data.pipeThrough(new TextEncoderStream()).pipeTo(file.writable);
+     * ```
+     */
+    get writable() {
+        const fileHandleId = __classPrivateFieldGet(this, _FsFile_fileHandleId, "f");
+        const client = __classPrivateFieldGet(this, _FsFile_client, "f");
+        return new WritableStream({
+            async write(chunk, controller) {
+                let bytesWritten = 0;
+                const chunkBytes = chunk.byteLength;
+                while (bytesWritten < chunkBytes) {
+                    const res = await client.call("fileWrite", {
+                        fileHandleId,
+                        data: chunk.slice(bytesWritten),
+                    });
+                    if ("error" in res) {
+                        controller.error(res.error);
+                        return;
+                    }
+                    bytesWritten += res.ok.bytesWritten;
+                }
+            },
+        });
+    }
+    /** Write the contents of the array buffer (`p`) to the file.
+     *
+     * Resolves to the number of bytes written.
+     *
+     * **It is not guaranteed that the full buffer will be written in a single
+     * call.**
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const data = new Uint8Array([1, 2, 3]);
+     * await using file = await sandbox.fs.open("data.bin", { write: true });
+     * const bytesWritten = await file.write(data); // 3
+     * ```
+     */
+    async write(p) {
+        const res = await __classPrivateFieldGet(this, _FsFile_client, "f").call("fileWrite", {
+            fileHandleId: __classPrivateFieldGet(this, _FsFile_fileHandleId, "f"),
+            data: p,
+        });
+        if ("error" in res)
+            throw res.error;
+        return res.ok.bytesWritten;
+    }
+    /** Truncates (or extends) the file to reach the specified `len`. If `len`
+     * is not specified, then the entire file contents are truncated.
+     *
+     * ### Truncate the entire file
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open("my_file.txt", { write: true });
+     * await file.truncate();
+     * ```
+     *
+     * ### Truncate part of the file
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * // if "my_file.txt" contains the text "hello world":
+     * await using file = await sandbox.fs.open("my_file.txt", { write: true });
+     * await file.truncate(7);
+     * const buf = new Uint8Array(100);
+     * await file.read(buf);
+     * const text = new TextDecoder().decode(buf); // "hello w"
+     * ```
+     */
+    async truncate(len) {
+        const res = await __classPrivateFieldGet(this, _FsFile_client, "f").call("fileTruncate", { fileHandleId: __classPrivateFieldGet(this, _FsFile_fileHandleId, "f"), len });
+        if ("error" in res)
+            throw res.error;
+    }
+    /** Read the file into an array buffer (`p`).
+     *
+     * Resolves to either the number of bytes read during the operation or EOF
+     * (`null`) if there was nothing more to read.
+     *
+     * It is possible for a read to successfully return with `0` bytes. This
+     * does not indicate EOF.
+     *
+     * **It is not guaranteed that the full buffer will be read in a single
+     * call.**
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * // if "/foo/bar.txt" contains the text "hello world":
+     * await using file = await sandbox.fs.open("/foo/bar.txt");
+     * const buf = new Uint8Array(100);
+     * const numberOfBytesRead = await file.read(buf); // 11 bytes
+     * const text = new TextDecoder().decode(buf);  // "hello world"
+     * ```
+     */
+    async read(p) {
+        const res = await __classPrivateFieldGet(this, _FsFile_client, "f").call("fileRead", {
+            fileHandleId: __classPrivateFieldGet(this, _FsFile_fileHandleId, "f"),
+            length: p.length,
+        });
+        if ("error" in res)
+            throw res.error;
+        if (res.ok.data === null)
+            return null;
+        p.set(res.ok.data);
+        return res.ok.data.length;
+    }
+    /** Seek to the given `offset` under mode given by `whence`. The call
+     * resolves to the new position within the resource (bytes from the start).
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * import { assertEquals } from "jsr:@std/assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open(
+     *   "hello.txt",
+     *   { read: true, write: true, truncate: true, create: true },
+     * );
+     * await file.write(new Uint8Array([0, 1, 2, 3, 4, 5]));
+     *
+     * // advance cursor 2 bytes
+     * const cursorPosition = await file.seek(2, SeekMode.Start);
+     * assertEquals(cursorPosition, 2);
+     * const buf = new Uint8Array(100);
+     * await file.read(buf);
+     * assertEquals(buf, new Uint8Array([2, 3, 4, 5]));
+     * ```
+     *
+     * The seek modes work as follows:
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * import { assertEquals } from "jsr:@std/assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open(
+     *   "hello.txt",
+     *   { read: true, write: true, truncate: true, create: true },
+     * );
+     * await file.write(new Uint8Array([0, 1, 2, 3, 4, 5]));
+     *
+     * // Seek 2 bytes from the start of the file
+     * let cursorPosition = await file.seek(2, SeekMode.Start);
+     * assertEquals(cursorPosition, 2);
+     * // Seek 3 more bytes from the current position
+     * cursorPosition = await file.seek(3, SeekMode.Current);
+     * assertEquals(cursorPosition, 5);
+     * // Seek backwards 4 bytes from the end of the file
+     * cursorPosition = await file.seek(-4, SeekMode.End);
+     * assertEquals(cursorPosition, 2);
+     * ```
+     */
+    async seek(offset, whence) {
+        const res = await __classPrivateFieldGet(this, _FsFile_client, "f").call("fileSeek", {
+            fileHandleId: __classPrivateFieldGet(this, _FsFile_fileHandleId, "f"),
+            offset,
+            whence,
+        });
+        if ("error" in res)
+            throw res.error;
+        return res.ok.position;
+    }
+    /** Resolves to a {@linkcode FileInfo} for the file.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * import assert from "node:assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open("hello.txt");
+     * const fileInfo = await file.stat();
+     * assert(fileInfo.isFile);
+     * ```
+     */
+    async stat() {
+        const res = await __classPrivateFieldGet(this, _FsFile_client, "f").call("fileStat", { fileHandleId: __classPrivateFieldGet(this, _FsFile_fileHandleId, "f") });
+        if ("error" in res)
+            throw res.error;
+        return res.ok;
+    }
+    /** Flushes any pending data and metadata operations of the given
+     * file stream to disk.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * import { assertEquals } from "jsr:@std/assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open("data.bin", { write: true });
+     * await file.write(new Uint8Array([0, 1, 2]));
+     * await file.sync();
+     * assertEquals(await sandbox.fs.readFile("data.bin"), new Uint8Array([0, 1, 2]));
+     * ```
+     */
+    async sync() {
+        const res = await __classPrivateFieldGet(this, _FsFile_client, "f").call("fileSync", { fileHandleId: __classPrivateFieldGet(this, _FsFile_fileHandleId, "f") });
+        if ("error" in res)
+            throw res.error;
+    }
+    /** Flushes any pending data operations of the given file stream to disk.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * import { assertEquals } from "jsr:@std/assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open("data.bin", { write: true });
+     * await file.write(new Uint8Array([0, 1, 2]));
+     * await file.syncData();
+     * assertEquals(await sandbox.fs.readFile("data.bin"), new Uint8Array([0, 1, 2]));
+     * ```
+     */
+    async syncData() {
+        const res = await __classPrivateFieldGet(this, _FsFile_client, "f").call("fileSyncData", { fileHandleId: __classPrivateFieldGet(this, _FsFile_fileHandleId, "f") });
+        if ("error" in res)
+            throw res.error;
+    }
+    /** Changes the access (`atime`) and modification (`mtime`) times of the
+     * file stream resource. Given times are either in seconds (UNIX epoch
+     * time) or as `Date` objects.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using file = await sandbox.fs.open("my_file.txt", { create: true, write: true });
+     * await file.utime(new Date(), new Date());
+     * ```
+     */
+    async utime(atime, mtime) {
+        const res = await __classPrivateFieldGet(this, _FsFile_client, "f").call("fileUtime", {
+            fileHandleId: __classPrivateFieldGet(this, _FsFile_fileHandleId, "f"),
+            atime: atime instanceof Date ? atime : new Date(atime),
+            mtime: mtime instanceof Date ? mtime : new Date(mtime),
+        });
+        if ("error" in res)
+            throw res.error;
+    }
+    /** Acquire an advisory file-system lock for the file. */
+    async lock(exclusive) {
+        const res = await __classPrivateFieldGet(this, _FsFile_client, "f").call("fileLock", {
+            fileHandleId: __classPrivateFieldGet(this, _FsFile_fileHandleId, "f"),
+            exclusive,
+        });
+        if ("error" in res)
+            throw res.error;
+    }
+    /** Release an advisory file-system lock for the file. */
+    async unlock() {
+        const res = await __classPrivateFieldGet(this, _FsFile_client, "f").call("fileUnlock", { fileHandleId: __classPrivateFieldGet(this, _FsFile_fileHandleId, "f") });
+        if ("error" in res)
+            throw res.error;
+    }
+    /** Close the file. Closing a file when you are finished with it is
+     * important to avoid leaking resources.
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const file = await sandbox.fs.open("my_file.txt");
+     * // do work with "file" object
+     * await file.close();
+     * ```
+     */
+    async close() {
+        if (!__classPrivateFieldGet(this, _FsFile_closed, "f")) {
+            __classPrivateFieldSet(this, _FsFile_closed, true, "f");
+            const res = await __classPrivateFieldGet(this, _FsFile_client, "f").call("fileClose", { fileHandleId: __classPrivateFieldGet(this, _FsFile_fileHandleId, "f") });
+            if ("error" in res)
+                throw res.error;
+        }
+    }
+    /** Disposes the file handle. */
+    async [(_FsFile_fileHandleId = new WeakMap(), _FsFile_client = new WeakMap(), _FsFile_closed = new WeakMap(), Symbol.asyncDispose)]() {
+        await this.close();
+    }
+}
+exports.FsFile = FsFile;
+(() => {
+    setupFsFile = (fsFile, fileHandleId, client) => {
+        __classPrivateFieldSet(fsFile, _FsFile_fileHandleId, fileHandleId, "f");
+        __classPrivateFieldSet(fsFile, _FsFile_client, client, "f");
+    };
+})();
+class SandboxFsImpl {
+    constructor(client) {
+        _SandboxFsImpl_instances.add(this);
+        _SandboxFsImpl_client.set(this, void 0);
+        __classPrivateFieldSet(this, _SandboxFsImpl_client, client, "f");
+    }
+    async readFile(path, options) {
+        path = normalizePath(path);
+        let abortId;
+        if (options?.signal) {
+            const abort = (0, abort_js_1.setupAbort)(__classPrivateFieldGet(this, _SandboxFsImpl_client, "f"));
+            options.signal.addEventListener("abort", abort.abortHandler);
+            abortId = abort.abortId;
+        }
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("readFile", {
+            path,
+            abortId,
+        });
+        if ("error" in res)
+            throw res.error;
+        return res.ok;
+    }
+    async writeFile(path, data, options) {
+        path = normalizePath(path);
+        let rest;
+        if (data instanceof ReadableStream) {
+            rest = {
+                contentStreamId: (0, stream_js_1.sendStream)(data.getReader(), __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").rawTransport),
+            };
+        }
+        else {
+            rest = { content: data };
+        }
+        let abortId;
+        if (options?.signal) {
+            const abort = (0, abort_js_1.setupAbort)(__classPrivateFieldGet(this, _SandboxFsImpl_client, "f"));
+            options.signal.addEventListener("abort", abort.abortHandler);
+            abortId = abort.abortId;
+        }
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("writeFile", {
+            path,
+            abortId,
+            options,
+            ...rest,
+        });
+        if ("error" in res)
+            throw res.error;
+        return;
+    }
+    async readTextFile(path, options) {
+        path = normalizePath(path);
+        let abortId;
+        if (options?.signal) {
+            const abort = (0, abort_js_1.setupAbort)(__classPrivateFieldGet(this, _SandboxFsImpl_client, "f"));
+            options.signal.addEventListener("abort", abort.abortHandler);
+            abortId = abort.abortId;
+        }
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("readTextFile", {
+            path,
+            abortId,
+        });
+        if ("error" in res)
+            throw res.error;
+        return res.ok;
+    }
+    async writeTextFile(path, data, options) {
+        path = normalizePath(path);
+        let rest;
+        if (data instanceof ReadableStream) {
+            rest = {
+                contentStreamId: (0, stream_js_1.sendStream)(data.pipeThrough(new TextEncoderStream()).getReader(), __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").rawTransport),
+            };
+        }
+        else {
+            rest = { content: data };
+        }
+        let abortId;
+        if (options?.signal) {
+            const abort = (0, abort_js_1.setupAbort)(__classPrivateFieldGet(this, _SandboxFsImpl_client, "f"));
+            options.signal.addEventListener("abort", abort.abortHandler);
+            abortId = abort.abortId;
+        }
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("writeTextFile", {
+            path,
+            abortId,
+            options,
+            ...rest,
+        });
+        if ("error" in res)
+            throw res.error;
+        return;
+    }
+    async *readDir(path) {
+        path = normalizePath(path);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("readDir", { path });
+        if ("error" in res)
+            throw res.error;
+        yield* res.ok;
+    }
+    async remove(path, options) {
+        path = normalizePath(path);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("remove", { path, options });
+        if ("error" in res)
+            throw res.error;
+        return;
+    }
+    async mkdir(path, options) {
+        path = normalizePath(path);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("mkdir", { path, options });
+        if ("error" in res)
+            throw res.error;
+        return;
+    }
+    async rename(oldPath, newPath) {
+        oldPath = normalizePath(oldPath);
+        newPath = normalizePath(newPath);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("rename", { oldPath, newPath });
+        if ("error" in res)
+            throw res.error;
+        return;
+    }
+    async stat(path) {
+        path = normalizePath(path);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("stat", { path });
+        if ("error" in res)
+            throw res.error;
+        return res.ok;
+    }
+    async chmod(path, mode) {
+        path = normalizePath(path);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("chmod", { path, mode });
+        if ("error" in res)
+            throw res.error;
+        return;
+    }
+    async chown(path, uid, gid) {
+        path = normalizePath(path);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("chown", { path, uid, gid });
+        if ("error" in res)
+            throw res.error;
+        return;
+    }
+    async copyFile(fromPath, toPath) {
+        fromPath = normalizePath(fromPath);
+        toPath = normalizePath(toPath);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("copyFile", { fromPath, toPath });
+        if ("error" in res)
+            throw res.error;
+        return;
+    }
+    async *walk(path, options = {}) {
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("walk", {
+            ...options,
+            path: normalizePath(path),
+            match: options.match,
+            skip: options.skip,
+        });
+        if ("error" in res)
+            throw res.error;
+        yield* (0, stream_js_1.receiveStream)(res.ok.streamId, __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").rawTransport)
+            .pipeThrough(new TextDecoderStream())
+            .pipeThrough(new TransformStream({
+            transform(chunk, controller) {
+                controller.enqueue(JSON.parse(chunk));
+            },
+        }));
+    }
+    async *expandGlob(glob, options = {}) {
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("expandGlob", {
+            ...options,
+            glob: normalizePath(glob),
+        });
+        if ("error" in res)
+            throw res.error;
+        yield* (0, stream_js_1.receiveStream)(res.ok.streamId, __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").rawTransport)
+            .pipeThrough(new TextDecoderStream())
+            .pipeThrough(new TransformStream({
+            transform(chunk, controller) {
+                controller.enqueue(JSON.parse(chunk));
+            },
+        }));
+    }
+    async create(path) {
+        path = normalizePath(path);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("create", { path });
+        if ("error" in res)
+            throw res.error;
+        const fsFile = new FsFile(utils_js_1.privateConstructSymbol);
+        setupFsFile(fsFile, res.ok.fileHandleId, __classPrivateFieldGet(this, _SandboxFsImpl_client, "f"));
+        return fsFile;
+    }
+    async link(target, path) {
+        target = normalizePath(target);
+        path = normalizePath(path);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("link", { target: target, path: path });
+        if ("error" in res)
+            throw res.error;
+        return;
+    }
+    async lstat(path) {
+        path = normalizePath(path);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("lstat", { path });
+        if ("error" in res)
+            throw res.error;
+        return res.ok;
+    }
+    async makeTempDir(options) {
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("makeTempDir", { options });
+        if ("error" in res)
+            throw res.error;
+        return res.ok;
+    }
+    async makeTempFile(options) {
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("makeTempFile", { options });
+        if ("error" in res)
+            throw res.error;
+        return res.ok;
+    }
+    async open(path, options) {
+        path = normalizePath(path);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("open", { path, options });
+        if ("error" in res)
+            throw res.error;
+        const fsFile = new FsFile(utils_js_1.privateConstructSymbol);
+        setupFsFile(fsFile, res.ok.fileHandleId, __classPrivateFieldGet(this, _SandboxFsImpl_client, "f"));
+        return fsFile;
+    }
+    async readLink(path) {
+        path = normalizePath(path);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("readLink", { path });
+        if ("error" in res)
+            throw res.error;
+        return res.ok;
+    }
+    async realPath(path) {
+        path = normalizePath(path);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("realPath", { path });
+        if ("error" in res)
+            throw res.error;
+        return res.ok;
+    }
+    async symlink(target, path, options) {
+        target = normalizePath(target);
+        path = normalizePath(path);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("symlink", { target: target, path: path, options });
+        if ("error" in res)
+            throw res.error;
+        return;
+    }
+    async truncate(name, length) {
+        name = normalizePath(name);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("truncate", { name, length });
+        if ("error" in res)
+            throw res.error;
+        return;
+    }
+    async umask(mask) {
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("umask", { mask });
+        if ("error" in res)
+            throw res.error;
+        return res.ok;
+    }
+    async utime(path, atime, mtime) {
+        path = normalizePath(path);
+        const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("utime", {
+            path,
+            atime: atime instanceof Date ? atime : new Date(atime),
+            mtime: mtime instanceof Date ? mtime : new Date(mtime),
+        });
+        if ("error" in res)
+            throw res.error;
+        return;
+    }
+    async upload(localPath, sandboxPath) {
+        const normalizedLocalPath = await dntShim.Deno.realPath(localPath);
+        const normalizedSandboxPath = normalizePath(sandboxPath);
+        const srcStat = await dntShim.Deno.lstat(normalizedLocalPath);
+        if (srcStat.isSymlink) {
+            await __classPrivateFieldGet(this, _SandboxFsImpl_instances, "m", _SandboxFsImpl_uploadSymlink).call(this, normalizedLocalPath, normalizedSandboxPath);
+        }
+        else if (srcStat.isDirectory) {
+            await __classPrivateFieldGet(this, _SandboxFsImpl_instances, "m", _SandboxFsImpl_uploadDirectory).call(this, normalizedLocalPath, normalizedSandboxPath);
+        }
+        else if (srcStat.isFile) {
+            await __classPrivateFieldGet(this, _SandboxFsImpl_instances, "m", _SandboxFsImpl_uploadFile).call(this, normalizedLocalPath, normalizedSandboxPath);
+        }
+    }
+    async download(sandboxPath, localPath) {
+        const normalizedSandboxPath = await this.realPath(sandboxPath);
+        const normalizedLocalPath = normalizePath(localPath);
+        const srcStat = await this.lstat(normalizedSandboxPath);
+        if (srcStat.isSymlink) {
+            await __classPrivateFieldGet(this, _SandboxFsImpl_instances, "m", _SandboxFsImpl_downloadSymlink).call(this, normalizedSandboxPath, normalizedLocalPath);
+        }
+        else if (srcStat.isDirectory) {
+            await __classPrivateFieldGet(this, _SandboxFsImpl_instances, "m", _SandboxFsImpl_downloadDirectory).call(this, normalizedSandboxPath, normalizedLocalPath);
+        }
+        else if (srcStat.isFile) {
+            await __classPrivateFieldGet(this, _SandboxFsImpl_instances, "m", _SandboxFsImpl_downloadFile).call(this, normalizedSandboxPath, normalizedLocalPath);
+        }
+    }
+}
+exports.SandboxFsImpl = SandboxFsImpl;
+_SandboxFsImpl_client = new WeakMap(), _SandboxFsImpl_instances = new WeakSet(), _SandboxFsImpl_uploadSymlink = async function _SandboxFsImpl_uploadSymlink(localPath, sandboxPath) {
+    const realPath = await dntShim.Deno.realPath(localPath);
+    const relativePath = (0, relative_js_1.relative)((0, dirname_js_1.dirname)(localPath), realPath);
+    const res = await __classPrivateFieldGet(this, _SandboxFsImpl_client, "f").call("symlink", { target: relativePath, path: sandboxPath });
+    if ("error" in res)
+        throw res.error;
+    return;
+}, _SandboxFsImpl_uploadDirectory = async function _SandboxFsImpl_uploadDirectory(localPath, sandboxPath) {
+    const dirRoot = (0, dirname_js_1.dirname)(localPath);
+    for await (const entry of (0, walk_js_1.walk)(localPath)) {
+        const targetPath = (0, join_js_1.join)(sandboxPath, (0, relative_js_1.relative)(dirRoot, entry.path));
+        if (entry.isSymlink) {
+            await __classPrivateFieldGet(this, _SandboxFsImpl_instances, "m", _SandboxFsImpl_uploadSymlink).call(this, entry.path, targetPath);
+        }
+        else if (entry.isDirectory) {
+            await this.mkdir(targetPath);
+        }
+        else if (entry.isFile) {
+            await __classPrivateFieldGet(this, _SandboxFsImpl_instances, "m", _SandboxFsImpl_uploadFile).call(this, entry.path, targetPath);
+        }
+    }
+}, _SandboxFsImpl_uploadFile = async function _SandboxFsImpl_uploadFile(localPath, sandboxPath) {
+    // NOTE: We don't use `using` here to support old version of Node
+    const file = await dntShim.Deno.open(localPath, { read: true });
+    try {
+        await this.writeFile(sandboxPath, file.readable);
+    }
+    catch (e) {
+        // NOTE: No need to call `close` when writeFile has succeeded because the
+        // readable stream automatically closes the underlying file on EOF.
+        // See also: https://github.com/denoland/deno/pull/24247
+        try {
+            file.close();
+        }
+        catch {
+            // may be a directory, so close could fail
+        }
+        throw e;
+    }
+}, _SandboxFsImpl_downloadSymlink = async function _SandboxFsImpl_downloadSymlink(sandboxPath, localPath) {
+    const realPath = await this.realPath(sandboxPath);
+    const relativePath = (0, relative_js_1.relative)((0, dirname_js_1.dirname)(sandboxPath), realPath);
+    await dntShim.Deno.symlink(relativePath, localPath);
+}, _SandboxFsImpl_downloadDirectory = async function _SandboxFsImpl_downloadDirectory(sandboxPath, localPath) {
+    const dirRoot = (0, dirname_js_1.dirname)(sandboxPath);
+    for await (const entry of this.walk(sandboxPath)) {
+        const targetPath = (0, join_js_1.join)(localPath, (0, relative_js_1.relative)(dirRoot, entry.path));
+        if (entry.isSymlink) {
+            await __classPrivateFieldGet(this, _SandboxFsImpl_instances, "m", _SandboxFsImpl_downloadSymlink).call(this, entry.path, targetPath);
+        }
+        else if (entry.isDirectory) {
+            await dntShim.Deno.mkdir(targetPath);
+        }
+        else if (entry.isFile) {
+            await __classPrivateFieldGet(this, _SandboxFsImpl_instances, "m", _SandboxFsImpl_downloadFile).call(this, entry.path, targetPath);
+        }
+    }
+}, _SandboxFsImpl_downloadFile = async function _SandboxFsImpl_downloadFile(sandboxPath, localPath) {
+    const file = await this.open(sandboxPath, { read: true });
+    try {
+        await dntShim.Deno.writeFile(localPath, file.readable);
+    }
+    catch (e) {
+        // NOTE: No need to call `close` when writeFile has succeeded because the
+        // readable stream automatically closes the underlying file on EOF.
+        // See also: https://github.com/denoland/deno/pull/24247
+        try {
+            await file.close();
+        }
+        catch {
+            // may be a directory, so close could fail
+        }
+        throw e;
+    }
+};
+Object.defineProperty(SandboxFsImpl, "name", { value: "Sandbox.fs" });
+function normalizePath(path) {
+    if (typeof path === "string")
+        return path;
+    return (0, node_url_1.fileURLToPath)(path);
+}

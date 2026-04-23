@@ -1,0 +1,39 @@
+import z from "zod";
+import { JsonRpcNotification, JsonRpcRequest, JsonRpcSuccessResponse } from "./proto.js";
+import { type SandboxServiceSchema } from "./schema.js";
+import type { SecretConfig } from "./types.js";
+export declare class SandboxRpcClient {
+    rawTransport: RpcTransport;
+    call: <K extends keyof SandboxServiceSchema>(method: K, params: z.output<SandboxServiceSchema[K]["input"]>) => Promise<z.output<SandboxServiceSchema[K]["output"]>>;
+}
+export declare function rpcClient(transport: RpcTransport): SandboxRpcClient;
+export type RpcTransport = {
+    send: (req: JsonRpcRequest) => Promise<JsonRpcSuccessResponse>;
+    notify: (notification: JsonRpcNotification) => void;
+    close: () => Promise<void>;
+    closed: Promise<void>;
+};
+export interface WebSocketTransportOptions {
+    endpoint: string;
+    onReady?: (sandboxId: string) => void;
+    onError?: (error: Error) => void;
+    token: string;
+    org?: string;
+    config?: {
+        memory_mb: number;
+        stop_at_ms?: number;
+        root?: {
+            volume: string;
+        };
+        volumes?: Array<{
+            volume: string;
+            path: string;
+        }>;
+        labels?: Record<string, string>;
+        allow_net?: string[];
+        secrets?: Record<string, SecretConfig>;
+    };
+    debug: boolean;
+}
+export declare function websocketTransport(options: WebSocketTransportOptions): RpcTransport;
+//# sourceMappingURL=transport.d.ts.map

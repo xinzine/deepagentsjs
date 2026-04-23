@@ -1,0 +1,119 @@
+var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (receiver, state, value, kind, f) {
+    if (kind === "m") throw new TypeError("Private method is not writable");
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+    return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
+};
+var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (receiver, state, kind, f) {
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+};
+var _KillController_state, _KillController_killSignal, _KillSignal_state;
+const privateCtorSymbol = Symbol();
+/** Similar to an AbortController, but for sending signals to commands. */
+export class KillController {
+    constructor() {
+        _KillController_state.set(this, void 0);
+        _KillController_killSignal.set(this, void 0);
+        __classPrivateFieldSet(this, _KillController_state, {
+            abortedCode: undefined,
+            listeners: [],
+        }, "f");
+        __classPrivateFieldSet(this, _KillController_killSignal, new KillSignal(privateCtorSymbol, __classPrivateFieldGet(this, _KillController_state, "f")), "f");
+    }
+    /** Gets the signal associated with this controller. */
+    get signal() {
+        return __classPrivateFieldGet(this, _KillController_killSignal, "f");
+    }
+    /** Send a signal to the downstream commands. */
+    kill(signal = "SIGTERM") {
+        sendSignalToState(__classPrivateFieldGet(this, _KillController_state, "f"), signal);
+    }
+}
+_KillController_state = new WeakMap(), _KillController_killSignal = new WeakMap();
+/** Similar to `AbortSignal`, but for child process signals.
+ *
+ * A `KillSignal` is considered aborted if its controller
+ * receives SIGTERM, SIGKILL, SIGABRT, SIGQUIT, or SIGINT.
+ *
+ * These can be created via a `KillController`.
+ */
+export class KillSignal {
+    /** @internal */
+    constructor(symbol, state) {
+        _KillSignal_state.set(this, void 0);
+        if (symbol !== privateCtorSymbol) {
+            throw new Error("Constructing instances of KillSignal is not permitted. Use KillController instead.");
+        }
+        __classPrivateFieldSet(this, _KillSignal_state, state, "f");
+    }
+    /** Returns if the command signal has ever received a SIGTERM,
+     * SIGKILL, SIGABRT, SIGQUIT, SIGINT, or SIGSTOP
+     */
+    get aborted() {
+        return __classPrivateFieldGet(this, _KillSignal_state, "f").abortedCode !== undefined;
+    }
+    /** Gets the exit code to use if aborted. */
+    get abortedExitCode() {
+        return __classPrivateFieldGet(this, _KillSignal_state, "f").abortedCode;
+    }
+    /**
+     * Causes the provided kill signal to be triggered when this
+     * signal receives a signal.
+     */
+    linkChild(killSignal) {
+        const listener = (signal) => {
+            sendSignalToState(__classPrivateFieldGet(killSignal, _KillSignal_state, "f"), signal);
+        };
+        this.addListener(listener);
+        return {
+            unsubscribe: () => {
+                this.removeListener(listener);
+            },
+        };
+    }
+    /** Adds a listener that's called when a kill signal is received. */
+    addListener(listener) {
+        __classPrivateFieldGet(this, _KillSignal_state, "f").listeners.push(listener);
+    }
+    /**
+     * Removes the listener.
+     *
+     * @remarks This should be called in order to not leak memory
+     * for kill signals that live for a long time.
+     */
+    removeListener(listener) {
+        const index = __classPrivateFieldGet(this, _KillSignal_state, "f").listeners.indexOf(listener);
+        if (index >= 0) {
+            __classPrivateFieldGet(this, _KillSignal_state, "f").listeners.splice(index, 1);
+        }
+    }
+}
+_KillSignal_state = new WeakMap();
+function sendSignalToState(state, signal) {
+    const code = getSignalAbortCode(signal);
+    if (code !== undefined) {
+        state.abortedCode = code;
+    }
+    for (const listener of state.listeners) {
+        listener(signal);
+    }
+}
+function getSignalAbortCode(signal) {
+    // consider the command aborted if the signal is any one of these
+    switch (signal) {
+        case "SIGTERM":
+            return 128 + 15;
+        case "SIGKILL":
+            return 128 + 9;
+        case "SIGABRT":
+            return 128 + 6;
+        case "SIGQUIT":
+            return 128 + 3;
+        case "SIGINT":
+            return 128 + 2;
+        default:
+            return undefined;
+    }
+}

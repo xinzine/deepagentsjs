@@ -1,0 +1,45 @@
+// Copyright 2025-2026 the Deno authors. MIT license.
+import { InvalidMemoryError } from "./errors.js";
+const MEBIBYTE = 1024 * 1024;
+const UNIT_TO_BYTES = {
+    GIB: 1024 * 1024 * 1024,
+    MIB: MEBIBYTE,
+    KIB: 1024,
+    GB: 1000 * 1000 * 1000,
+    MB: 1000 * 1000,
+    KB: 1000,
+};
+const MIN_MEMORY_MIB = 768;
+const MAX_MEMORY_MIB = 4096;
+const MEMORY_PATTERN = /^(\d+(?:\.\d+)?)(GB|MB|kB|GiB|MiB|KiB)$/;
+const UNKNOWN_UNIT_PATTERN = /^(\d+(?:\.\d+)?)([a-zA-Z]+)$/;
+const SUPPORTED_UNITS = ["GiB", "MiB", "KiB", "GB", "MB", "kB"];
+/**
+ * Parse a memory value to MiB (integer).
+ *
+ * @param value - The memory value to parse
+ * @returns The memory size in MiB
+ * @throws {InvalidMemoryError} If the format is invalid or the value is out of range
+ */
+export function parseMemory(value) {
+    let mib;
+    if (typeof value === "number") {
+        mib = Math.floor(value / MEBIBYTE);
+    }
+    else {
+        const match = value.match(MEMORY_PATTERN);
+        if (!match) {
+            const unknownUnitMatch = value.match(UNKNOWN_UNIT_PATTERN);
+            if (unknownUnitMatch) {
+                throw new InvalidMemoryError(`Unknown memory unit "${unknownUnitMatch[2]}". Supported units: ${SUPPORTED_UNITS.join(", ")}`);
+            }
+            throw new InvalidMemoryError(`Invalid memory format: "${value}". Expected a number or a string like "1GiB", "1280MiB", "1GB", etc.`);
+        }
+        const bytes = parseFloat(match[1]) * UNIT_TO_BYTES[match[2].toUpperCase()];
+        mib = Math.floor(bytes / MEBIBYTE);
+    }
+    if (mib < MIN_MEMORY_MIB || mib > MAX_MEMORY_MIB) {
+        throw new InvalidMemoryError(`Memory value ${mib} MiB is out of range. It must be between ${MIN_MEMORY_MIB} MiB and ${MAX_MEMORY_MIB} MiB.`);
+    }
+    return mib;
+}

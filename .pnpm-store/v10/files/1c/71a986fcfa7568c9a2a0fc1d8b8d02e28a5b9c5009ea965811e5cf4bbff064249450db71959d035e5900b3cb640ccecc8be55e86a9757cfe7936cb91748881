@@ -1,0 +1,262 @@
+// Copyright 2025-2026 the Deno authors. MIT license.
+import { Buffer } from "node:buffer";
+import WebSocket from "ws";
+import { maybeHandleDenoProcessMessage } from "./deno.js";
+import { ConnectionClosedError, ConnectionEstablishmentError, RpcError } from "./errors.js";
+import { jsonRpcMessageSchema, WEBSOCKET_STATUS, } from "./proto.js";
+import { sandboxServiceSchema } from "./schema.js";
+import { maybeHandleStreamMessage } from "./stream.js";
+/** Returns a human-readable description for a WebSocket close code. */
+function getCloseCodeDescription(code) {
+    switch (code) {
+        case WEBSOCKET_STATUS.NORMAL_CLOSURE:
+            return "Normal closure (1000)";
+        case WEBSOCKET_STATUS.GOING_AWAY:
+            return "Server going away (1001)";
+        case WEBSOCKET_STATUS.PROTOCOL_ERROR:
+            return "Protocol error (1002)";
+        case WEBSOCKET_STATUS.UNSUPPORTED_DATA:
+            return "Unsupported data (1003)";
+        case WEBSOCKET_STATUS.NO_STATUS_RECEIVED:
+            return "No status received (1005)";
+        case WEBSOCKET_STATUS.ABNORMAL_CLOSURE:
+            return "Abnormal closure (1006)";
+        case WEBSOCKET_STATUS.INVALID_FRAME_PAYLOAD_DATA:
+            return "Invalid frame payload data (1007)";
+        case WEBSOCKET_STATUS.POLICY_VIOLATION:
+            return "Policy violation (1008)";
+        case WEBSOCKET_STATUS.MESSAGE_TOO_BIG:
+            return "Message too big (1009)";
+        case WEBSOCKET_STATUS.MANDATORY_EXT:
+            return "Mandatory extension (1010)";
+        case WEBSOCKET_STATUS.INTERNAL_SERVER_ERROR:
+            return "Internal server error (1011)";
+        case WEBSOCKET_STATUS.INVALID_JSON:
+            return "Invalid JSON (4000)";
+        case WEBSOCKET_STATUS.INVALID_JSON_RPC:
+            return "Invalid JSON-RPC (4001)";
+        default:
+            if (code >= 3000 && code < 4000) {
+                return `Library/framework code (${code})`;
+            }
+            else if (code >= 4000 && code < 5000) {
+                return `Application code (${code})`;
+            }
+            return `Unknown code (${code})`;
+    }
+}
+// This class is named so that the error stack rewriter can find it.
+export class SandboxRpcClient {
+    constructor() {
+        Object.defineProperty(this, "rawTransport", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "call", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+    }
+}
+export function rpcClient(transport) {
+    let requestId = 0;
+    return Object.assign(new SandboxRpcClient(), {
+        rawTransport: transport,
+        call: async (method, params) => {
+            const schema = sandboxServiceSchema[method];
+            const req = {
+                jsonrpc: "2.0",
+                id: requestId++,
+                method,
+                // deno-lint-ignore no-explicit-any
+                params: schema.input.encode(params),
+            };
+            const resp = await transport.send(req);
+            return schema.output.parse(resp.result);
+        },
+    });
+}
+export function websocketTransport(options) {
+    const pendingRequests = new Map();
+    const headers = {
+        "authorization": `Bearer ${options.token}`,
+    };
+    if (options.config) {
+        headers["x-deno-sandbox-config"] = btoa(JSON.stringify(options.config));
+    }
+    if (options.org) {
+        headers["X-Deno-Org"] = options.org;
+    }
+    // NOTE: This WebSocket is from `npm:ws` and not the standard Web API in order
+    // to send http headers in the initial request.
+    const ws = new WebSocket(options.endpoint, [], { headers });
+    const wsReady = Promise.withResolvers();
+    wsReady.promise.catch(() => { });
+    const wsClosed = Promise.withResolvers();
+    wsClosed.promise.catch(() => { });
+    let closed = false;
+    let error = null;
+    ws.on("error", (e) => {
+        if (error)
+            return;
+        error = e;
+        console.error("WebSocket error:", e);
+        options.onError?.(error);
+        wsReady.reject(error);
+        wsClosed.reject(error);
+        closed = true;
+    });
+    ws.on("unexpected-response", (_req, resp) => {
+        const status = resp.statusCode;
+        const traceId = resp.headers["x-deno-trace-id"];
+        // read the response into a buffer
+        const chunks = [];
+        resp.on("data", (chunk) => {
+            chunks.push(chunk);
+        });
+        resp.on("end", () => {
+            const buffer = Buffer.concat(chunks);
+            const text = buffer.toString("utf8");
+            try {
+                const json = JSON.parse(text);
+                error = new ConnectionEstablishmentError(status, json.code, json.message, traceId);
+            }
+            catch {
+                error = new TypeError(text);
+            }
+            options.onError?.(error);
+            wsReady.reject(error);
+            wsClosed.reject(error);
+            ws.close();
+            closed = true;
+        });
+    });
+    let sandboxId = null;
+    ws.on("upgrade", (resp) => {
+        sandboxId = resp.headers["x-deno-sandbox-id"] || null;
+        if (options.debug) {
+            console.log("trace ID:", resp.headers["x-deno-trace-id"] || "n/a");
+        }
+    });
+    let pingInterval = null;
+    ws.on("open", () => {
+        options.onReady?.(sandboxId);
+        wsReady.resolve();
+        pingInterval = setInterval(() => {
+            ws.send("ping");
+        }, 2000);
+    });
+    ws.on("message", (rawData) => {
+        const data = rawData.toString("utf8");
+        if (data === "pong") {
+            return;
+        }
+        let parsed;
+        try {
+            parsed = JSON.parse(data);
+        }
+        catch (error) {
+            console.error({ msg: "Failed to parse WebSocket message", error, data });
+            ws.close(WEBSOCKET_STATUS.INVALID_JSON, "Invalid JSON");
+            return;
+        }
+        let message;
+        try {
+            message = jsonRpcMessageSchema.parse(parsed);
+        }
+        catch (error) {
+            console.error({
+                msg: "Failed to parse JSON-RPC message",
+                error,
+                data: parsed,
+            });
+            ws.close(WEBSOCKET_STATUS.INVALID_JSON_RPC, "Invalid message");
+            return;
+        }
+        if (!("id" in message)) {
+            if (maybeHandleStreamMessage(message, { notify }))
+                return;
+            if (maybeHandleDenoProcessMessage(message))
+                return;
+            console.error("Unknown notification method:", message.method);
+            return;
+        }
+        const pending = pendingRequests.get(message.id);
+        if (!pending) {
+            // This response was already handled
+            return;
+        }
+        if (!("result" in message || "error" in message)) {
+            console.error("Received JSON-RPC request:", message);
+            return;
+        }
+        pendingRequests.delete(message.id);
+        if ("error" in message) {
+            pending.reject(new RpcError(message.error.code, message.error.message, message.error.data));
+        }
+        else {
+            pending.resolve(message);
+        }
+    });
+    ws.on("close", (code, reason) => {
+        const reasonStr = reason.toString("utf8");
+        if (options.debug) {
+            if (code === WEBSOCKET_STATUS.NORMAL_CLOSURE ||
+                code === WEBSOCKET_STATUS.GOING_AWAY ||
+                code === WEBSOCKET_STATUS.NO_STATUS_RECEIVED) {
+                // Expected closure (including sandbox timeout)
+                console.log(`Sandbox connection closed: ${reasonStr || "server going away"}`);
+            }
+            else {
+                // Unexpected closure
+                const codeDescription = getCloseCodeDescription(code);
+                console.warn(`WebSocket closed: ${codeDescription}${reasonStr ? ` (${reasonStr})` : ""}`);
+            }
+        }
+        if (pingInterval) {
+            clearInterval(pingInterval);
+        }
+        // Reject all pending requests
+        const closeError = new ConnectionClosedError(code, reasonStr);
+        for (const pending of pendingRequests.values()) {
+            pending.reject(closeError);
+        }
+        pendingRequests.clear();
+        wsClosed.resolve();
+        closed = true;
+    });
+    const send = async (req) => {
+        if (closed) {
+            throw new ConnectionClosedError();
+        }
+        const { resolve, reject, promise } = Promise.withResolvers();
+        if (req.id != null) {
+            pendingRequests.set(req.id, {
+                resolve,
+                reject,
+            });
+        }
+        await wsReady.promise;
+        ws.send(JSON.stringify(req));
+        return promise;
+    };
+    const notify = (notification) => {
+        if (closed) {
+            throw new ConnectionClosedError();
+        }
+        ws.send(JSON.stringify(notification));
+    };
+    return {
+        send,
+        notify,
+        close: async () => {
+            ws.close();
+            return await wsClosed.promise;
+        },
+        closed: wsClosed.promise,
+    };
+}

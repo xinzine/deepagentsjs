@@ -1,0 +1,86 @@
+import util from "node:util";
+import { type BaseClientOptions } from "./client.js";
+import { SnapshotId, SnapshotSlug, type VolumeId, type VolumeInit, type VolumeSlug } from "./types.js";
+export declare function toVolume(data: unknown): Volume;
+/** The volume information returned from {@linkcode Volumes.get} */
+export declare class Volume {
+    #private;
+    /**
+     * Create a new volume
+     *
+     * Alias for `client.volumes.create()`
+     *
+     * @example
+     * ```ts
+     * import { Volume } from "@deno/sandbox";
+     *
+     * const volume = await Volume.create({
+     *   slug: "my-volume",
+     *   region: "ord",
+     *   capacity: "10GB",
+     * });
+     * console.log(volume.id);
+     * ```
+     */
+    static create(options: VolumeInit & BaseClientOptions): Promise<Volume>;
+    /**
+     * Get volume info by ID or slug
+     *
+     * Alias for `client.volumes.get()`
+     *
+     * @example
+     * ```ts
+     * import { Volume } from "@deno/sandbox";
+     *
+     * const volume = await Volume.get("my-volume");
+     * if (volume) {
+     *   console.log(`Volume capacity: ${volume.capacity} bytes`);
+     * }
+     * ```
+     */
+    static get(idOrSlug: VolumeId | VolumeSlug, options?: BaseClientOptions): Promise<Volume | null>;
+    /** @internal */
+    constructor(symbol: symbol, data: any);
+    /** The ID of the volume */
+    get id(): string;
+    /** The slug of the volume */
+    get slug(): string;
+    /** The region of the volume */
+    get region(): string;
+    /** The capacity of the volume in bytes */
+    get capacity(): number;
+    /**
+     * The number of bytes currently allocated specifically for the volume.
+     *
+     * Volumes created from snapshots are "copy-on-write", so this size may be
+     * smaller than the actual size of the file system on the volume, as it does
+     * not include data shared with any snapshots the volume was created from.
+     *
+     * **This is not the total size of the volume. For that, see
+     * {@linkcode estimatedFlattenedSize}.**
+     *
+     * This is an estimate, and may lag real-time usage by multiple minutes.
+     */
+    get estimatedAllocatedSize(): number;
+    /**
+     * The total size of the file system on the volume, in bytes. This is the size
+     * the volume would take up if it were fully "flattened" (i.e., if all data
+     * from any snapshots it was created from were fully copied to the volume).
+     *
+     * Volumes created from snapshots are "copy-on-write", so this size may be
+     * larger than the amount of data actually allocated for the volume.
+     *
+     * This is an estimate, and may lag real-time usage by multiple minutes.
+     */
+    get estimatedFlattenedSize(): number;
+    /** Whether this volume is bootable. */
+    get isBootable(): boolean;
+    /** The snapshot this volume was created from, if any. */
+    get baseSnapshot(): {
+        id: SnapshotId;
+        slug: SnapshotSlug;
+    } | null;
+    /** Custom inspect method */
+    [util.inspect.custom](depth: number, options: util.InspectOptionsStylized): string;
+}
+//# sourceMappingURL=volume.d.ts.map

@@ -1,0 +1,42 @@
+{
+  "name": "node-vfs-polyfill",
+  "version": "1.0.0",
+  "description": "User-land implementation of Node.js Virtual File System (VFS) based on nodejs/node#61478",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "scripts": {
+    "test": "node vendor/vfs-upstream/run-tests.js",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "knip": "knip"
+  },
+  "keywords": [
+    "vfs",
+    "virtual-filesystem",
+    "fs",
+    "mock",
+    "memory-fs"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "files": [
+    "index.js",
+    "src/",
+    "vendor/"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nodejs/node/pull/61478"
+  },
+  "packageManager": "pnpm@10.28.1",
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.13",
+    "knip": "^5.82.1"
+  }
+}

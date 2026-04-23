@@ -1,0 +1,161 @@
+"use strict";
+// Copyright 2025-2026 the Deno authors. MIT license.
+var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (receiver, state, kind, f) {
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+};
+var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (receiver, state, value, kind, f) {
+    if (kind === "m") throw new TypeError("Private method is not writable");
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+    return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
+};
+var _ChildProcess_pid, _ChildProcess_client, _ChildProcess_status, _ChildProcess_stdin, _ChildProcess_stdout, _ChildProcess_stderr;
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ChildProcess = exports.setupChildProcess = void 0;
+const utils_js_1 = require("./utils.js");
+/**
+ * A child process spawned by {@linkcode Sandbox.spawn}, or the base class for
+ * JavaScript runtimes created by {@linkcode SandboxDeno.run} and
+ * {@linkcode SandboxDeno.repl}.
+ *
+ * This class provides access to the process's `pid`, `stdin`, `stdout`, and
+ * `stderr` streams, as well as methods to kill the process and retrieve its
+ * output.
+ *
+ * To wait for the process to exit and get its exit status, use the
+ * {@linkcode ChildProcess.status} property, which resolves to a
+ * {@linkcode ChildProcessStatus} object.
+ */
+class ChildProcess extends EventTarget {
+    /** @internal */
+    constructor(symbol) {
+        if (symbol !== utils_js_1.privateConstructSymbol) {
+            throw new TypeError("Can not construct ChildProcess, use 'sandbox.spawn()'.");
+        }
+        super();
+        _ChildProcess_pid.set(this, void 0);
+        _ChildProcess_client.set(this, void 0);
+        _ChildProcess_status.set(this, void 0);
+        _ChildProcess_stdin.set(this, void 0);
+        _ChildProcess_stdout.set(this, void 0);
+        _ChildProcess_stderr.set(this, void 0);
+    }
+    /** The process ID of the child process. */
+    get pid() {
+        return __classPrivateFieldGet(this, _ChildProcess_pid, "f");
+    }
+    /** The stdin stream of the child process, if `stdin` was set to `"piped"`.
+     * If `stdin` was set to `"null"`, this will be `null`. */
+    get stdin() {
+        return __classPrivateFieldGet(this, _ChildProcess_stdin, "f");
+    }
+    /** The stdout stream of the child process, if `stdout` was set to `"piped"`.
+     * If `stdout` was set to `"null"`, this will be `null`. */
+    get stdout() {
+        return __classPrivateFieldGet(this, _ChildProcess_stdout, "f");
+    }
+    /** The stderr stream of the child process, if `stderr` was set to `"piped"`.
+     * If `stderr` was set to `"null"`, this will be `null`. */
+    get stderr() {
+        return __classPrivateFieldGet(this, _ChildProcess_stderr, "f");
+    }
+    /** A promise that resolves to a {@linkcode ChildProcessStatus} object when
+     * the child process exits. */
+    get status() {
+        return __classPrivateFieldGet(this, _ChildProcess_status, "f");
+    }
+    /** Kills the child process with the given signal, or `SIGTERM` if no signal
+     * is specified. Returns a promise that resolves when the signal has been sent.
+     *
+     * **THIS METHOD DOES NOT WAIT FOR THE PROCESS TO EXIT.** After calling this
+     * method, you must still wait for the process to exit using the
+     * {@linkcode ChildProcess.status} property.
+     *
+     * @example Kill a child process with SIGKILL
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * import { assert } from "jsr:@std/assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const child = await sandbox.spawn("sleep", { args: ["10"] });
+     * await child.kill("SIGKILL");
+     * const status = await child.status; // Wait for the process to exit
+     * assert(status.signal === "SIGKILL");
+     * ```
+     */
+    async kill(signal) {
+        const res = await __classPrivateFieldGet(this, _ChildProcess_client, "f").call("processKill", {
+            pid: __classPrivateFieldGet(this, _ChildProcess_pid, "f"),
+            signal,
+        });
+        if ("error" in res) {
+            if (typeof res.error === "object" && res.error !== null && "code" in res.error &&
+                res.error.code === "ENOENT")
+                return;
+            throw res.error;
+        }
+    }
+    /**
+     * Waits for the child process to exit and returns an object containing
+     * the exit status, and buffered `stdout` and `stderr` streams of the process.
+     */
+    async output() {
+        // The return type of `Response.bytes()` is now declared as `Uint8Array`
+        // i.e. `Uint8Array<ArrayBufferLike>` instead of `Uint8Array<ArrayBuffer>`.
+        // To bridge the type mismatch, we first call `arrayBuffer()` to get
+        // `ArrayBuffer` then turn it into `Uint8Array<ArrayBuffer>`.
+        // This workaround can be removed once https://github.com/denoland/deno/pull/30435 lands
+        const [status, stdout, stderr] = await Promise.all([
+            __classPrivateFieldGet(this, _ChildProcess_status, "f"),
+            this.stdout
+                ? (new Response(this.stdout).arrayBuffer())
+                    .then((buf) => new Uint8Array(buf))
+                    .catch(() => null)
+                : null,
+            this.stderr
+                ? (new Response(this.stderr).arrayBuffer())
+                    .then((buf) => new Uint8Array(buf))
+                    .catch(() => null)
+                : null,
+        ]);
+        return {
+            status,
+            stdout,
+            stderr,
+            get stdoutText() {
+                return stdout ? new TextDecoder().decode(stdout) : null;
+            },
+            get stderrText() {
+                return stderr ? new TextDecoder().decode(stderr) : null;
+            },
+        };
+    }
+    /** Disposes the child process. */
+    async [(_ChildProcess_pid = new WeakMap(), _ChildProcess_client = new WeakMap(), _ChildProcess_status = new WeakMap(), _ChildProcess_stdin = new WeakMap(), _ChildProcess_stdout = new WeakMap(), _ChildProcess_stderr = new WeakMap(), Symbol.asyncDispose)]() {
+        await this.kill();
+        await __classPrivateFieldGet(this, _ChildProcess_status, "f");
+    }
+}
+exports.ChildProcess = ChildProcess;
+(() => {
+    exports.setupChildProcess = (child, client, pid, stdinStream, stdoutStream, stderrStream) => {
+        __classPrivateFieldSet(child, _ChildProcess_pid, pid, "f");
+        __classPrivateFieldSet(child, _ChildProcess_stdin, stdinStream, "f");
+        __classPrivateFieldSet(child, _ChildProcess_stdout, stdoutStream, "f");
+        __classPrivateFieldSet(child, _ChildProcess_stderr, stderrStream, "f");
+        __classPrivateFieldSet(child, _ChildProcess_client, client, "f");
+        __classPrivateFieldSet(child, _ChildProcess_status, __classPrivateFieldGet(child, _ChildProcess_client, "f").call("processWait", { pid }).then((res) => {
+            if ("error" in res)
+                throw res.error;
+            return {
+                success: res.ok.success,
+                code: res.ok.code,
+                signal: res.ok.signal,
+                oom: !!res.ok.oom,
+            };
+        }), "f");
+        __classPrivateFieldGet(child, _ChildProcess_status, "f").catch(() => { });
+    };
+})();

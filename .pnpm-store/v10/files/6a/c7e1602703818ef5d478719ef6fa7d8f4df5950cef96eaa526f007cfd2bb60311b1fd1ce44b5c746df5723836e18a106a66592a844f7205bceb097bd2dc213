@@ -1,0 +1,105 @@
+import { SandboxRpcClient } from "./transport.js";
+export declare let setupChildProcess: (child: ChildProcess, client: SandboxRpcClient, pid: number, stdinStream: WritableStream<Uint8Array<ArrayBuffer>> | null, stdoutStream: ReadableStream<Uint8Array<ArrayBuffer>> | null, stderrStream: ReadableStream<Uint8Array<ArrayBuffer>> | null) => void;
+/**
+ * A child process spawned by {@linkcode Sandbox.spawn}, or the base class for
+ * JavaScript runtimes created by {@linkcode SandboxDeno.run} and
+ * {@linkcode SandboxDeno.repl}.
+ *
+ * This class provides access to the process's `pid`, `stdin`, `stdout`, and
+ * `stderr` streams, as well as methods to kill the process and retrieve its
+ * output.
+ *
+ * To wait for the process to exit and get its exit status, use the
+ * {@linkcode ChildProcess.status} property, which resolves to a
+ * {@linkcode ChildProcessStatus} object.
+ */
+export declare class ChildProcess extends EventTarget implements AsyncDisposable {
+    #private;
+    /** @internal */
+    constructor(symbol: symbol);
+    /** The process ID of the child process. */
+    get pid(): number;
+    /** The stdin stream of the child process, if `stdin` was set to `"piped"`.
+     * If `stdin` was set to `"null"`, this will be `null`. */
+    get stdin(): WritableStream<Uint8Array<ArrayBuffer>> | null;
+    /** The stdout stream of the child process, if `stdout` was set to `"piped"`.
+     * If `stdout` was set to `"null"`, this will be `null`. */
+    get stdout(): ReadableStream<Uint8Array<ArrayBuffer>> | null;
+    /** The stderr stream of the child process, if `stderr` was set to `"piped"`.
+     * If `stderr` was set to `"null"`, this will be `null`. */
+    get stderr(): ReadableStream<Uint8Array<ArrayBuffer>> | null;
+    /** A promise that resolves to a {@linkcode ChildProcessStatus} object when
+     * the child process exits. */
+    get status(): Promise<ChildProcessStatus>;
+    /** Kills the child process with the given signal, or `SIGTERM` if no signal
+     * is specified. Returns a promise that resolves when the signal has been sent.
+     *
+     * **THIS METHOD DOES NOT WAIT FOR THE PROCESS TO EXIT.** After calling this
+     * method, you must still wait for the process to exit using the
+     * {@linkcode ChildProcess.status} property.
+     *
+     * @example Kill a child process with SIGKILL
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * import { assert } from "jsr:@std/assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const child = await sandbox.spawn("sleep", { args: ["10"] });
+     * await child.kill("SIGKILL");
+     * const status = await child.status; // Wait for the process to exit
+     * assert(status.signal === "SIGKILL");
+     * ```
+     */
+    kill(signal?: Signal): Promise<void>;
+    /**
+     * Waits for the child process to exit and returns an object containing
+     * the exit status, and buffered `stdout` and `stderr` streams of the process.
+     */
+    output(): Promise<ChildProcessOutput>;
+    /** Disposes the child process. */
+    [Symbol.asyncDispose](): Promise<void>;
+}
+/**
+ * Signals that can be used to kill a process using
+ * {@linkcode ChildProcess.kill}, and are returned by the
+ * {@linkcode ChildProcessStatus.signal} property and the
+ * {@linkcode ChildProcess.output} method.
+ */
+export type Signal = "SIGABRT" | "SIGALRM" | "SIGBREAK" | "SIGBUS" | "SIGCHLD" | "SIGCONT" | "SIGEMT" | "SIGFPE" | "SIGHUP" | "SIGILL" | "SIGINFO" | "SIGINT" | "SIGIO" | "SIGPOLL" | "SIGUNUSED" | "SIGKILL" | "SIGPIPE" | "SIGPROF" | "SIGPWR" | "SIGQUIT" | "SIGSEGV" | "SIGSTKFLT" | "SIGSTOP" | "SIGSYS" | "SIGTERM" | "SIGTRAP" | "SIGTSTP" | "SIGTTIN" | "SIGTTOU" | "SIGURG" | "SIGUSR1" | "SIGUSR2" | "SIGVTALRM" | "SIGWINCH" | "SIGXCPU" | "SIGXFSZ";
+/**
+ * Exit status of a command executed by {@linkcode Sandbox.spawn}, accessed via
+ * the {@linkcode ChildProcess.status} property or the
+ * {@linkcode ChildProcess.output} method.
+ */
+export interface ChildProcessStatus {
+    /** Whether the process exited successfully, i.e. with a zero exit code. */
+    success: boolean;
+    /** The exit code of the process. Negative values indicate that the
+     * process was killed by a signal. */
+    code: number;
+    /** The signal that caused the process to exit, if any. If the process exited
+     * normally, this will be `null`. */
+    signal: Signal | null;
+    /**
+     * Whether the process or a subprocess was detected to have run out of memory.
+     * This field can only be `true` if the `code` field is equal to `137`.
+     */
+    oom: boolean;
+}
+/**
+ * Return value of {@linkcode ChildProcess.output}, containing the buffered
+ * `stdout` and `stderr`, and the exit status of the process.
+ */
+export interface ChildProcessOutput {
+    /** The exit status of the child process. */
+    status: ChildProcessStatus;
+    /** Standard output. */
+    readonly stdout: Uint8Array<ArrayBuffer> | null;
+    /** Standard error output. */
+    readonly stderr: Uint8Array<ArrayBuffer> | null;
+    /** Text decoded from `stdout` using UTF-8 encoding. */
+    readonly stdoutText: string | null;
+    /** Text decoded from `stderr` using UTF-8 encoding. */
+    readonly stderrText: string | null;
+}
+//# sourceMappingURL=child_process.d.ts.map

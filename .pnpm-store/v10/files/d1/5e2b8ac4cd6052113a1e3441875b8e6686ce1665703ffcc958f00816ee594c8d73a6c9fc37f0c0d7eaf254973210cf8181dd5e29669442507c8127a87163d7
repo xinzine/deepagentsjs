@@ -1,0 +1,622 @@
+import util from "node:util";
+import { ChildProcess, ChildProcessStatus, Signal } from "./child_process.js";
+import { type BaseClientOptions } from "./client.js";
+import { SandboxCommandBuilder, type SandboxCommandResult } from "./command/mod.js";
+import { type Build, type DeployOptions, type SandboxDeno } from "./deno.js";
+import { type SandboxEnv } from "./env.js";
+import { SandboxCommandError } from "./errors.js";
+import { type SandboxFs } from "./fs.js";
+import { type Memory } from "./memory.js";
+import type { Region, SecretConfig, SnapshotId, SnapshotSlug, VolumeId, VolumeSlug } from "./types.js";
+/** Options passed to the {@linkcode Sandbox.create} API. */
+export interface SandboxOptions extends BaseClientOptions {
+    /**
+     * The region where to create the sandbox. When not specified, it is created
+     * in the default region.
+     *
+     * @example "ord"
+     * @example "ams"
+     */
+    region?: Region;
+    /**
+     * Override the Sandbox API endpoint URL to use to create and communicate with
+     * the sandboxes.
+     *
+     * The default can also be overridden by setting the `DENO_SANDBOX_ENDPOINT`
+     * or `DENO_SANDBOX_BASE_DOMAIN` environment variables.
+     */
+    sandboxEndpoint?: string | ((region: string) => string);
+    /**
+     * Environment variables to start the sandbox with, in addition to the default
+     * environment variables such as `DENO_DEPLOY_ORGANIZATION_ID`.
+     */
+    env?: Record<string, string>;
+    /**
+     * The timeout of the sandbox. When not specified, it defaults to "session".
+     *
+     * "session" means the sandbox will be destroyed when the primary client
+     * disconnects. "Primary" client is the client that created the sandbox with
+     * {@linkcode Sandbox.create}, as opposed to secondary clients started with
+     * {@linkcode Sandbox.connect}.
+     *
+     * A specific time duration, like "600s" or "15m", signifies the sandbox will
+     * be alive for that duration. Note that when this duration has passed, the
+     * sandbox will be terminated even if there are still clients connected to it.
+     *
+     * @example "session"
+     * @example "600s"
+     * @example "20m"
+     */
+    timeout?: "session" | `${number}s` | `${number}m`;
+    /**
+     * The memory size of the sandbox. Supports plain numbers (interpreted as bytes)
+     * and human-readable strings with binary (GiB, MiB, KiB) or decimal (GB, MB, kB)
+     * units.
+     *
+     * @example 1342177280
+     * @example "1GiB"
+     * @example "1280MiB"
+     * @default "1280MiB"
+     */
+    memory?: Memory;
+    /** Whether to enable debug logging.
+     *
+     * @default {false} */
+    debug?: boolean;
+    /**
+     * Labels to set on the sandbox. Up to 5 labels can be specified. Each label
+     * key must be at most 64 bytes, and each label value must be at most 128
+     * bytes.
+     */
+    labels?: Record<string, string>;
+    /**
+     * A volume or snapshot to use as the root filesystem of the sandbox. This is
+     * optional; if not specified, the default base image will be used.
+     *
+     * The volume or snapshot must be bootable.
+     *
+     * Volumes will be mounted read-write (so writes are persisted), while
+     * snapshots will be mounted read-only, so any writes in the sandbox will not
+     * be persisted.
+     *
+     * @example
+     * ```ts
+     * await using sandbox = await Sandbox.create({
+     *   root: "volume-slug-or-id",
+     * });
+     * ```
+     */
+    root?: VolumeId | VolumeSlug | SnapshotId | SnapshotSlug;
+    /**
+     * Volumes to mount on the sandbox.
+     *
+     * The key is the mount path inside the sandbox, and the value is the volume
+     * ID or slug.
+     *
+     * @example
+     * ```ts
+     * await using sandbox = await Sandbox.create({
+     *   volumes: {
+     *     "/data/volume1": "volume-slug-or-id-1",
+     *   },
+     * });
+     * ```
+     */
+    volumes?: Record<string, VolumeId | VolumeSlug>;
+    /**
+     * List of hostnames / IP addresses with optional port numbers that the sandbox can make outbound network requests to.
+     *
+     * If not specified, no network restrictions are applied.
+     *
+     * @example []
+     * @example ["example.com"]
+     * @example ["*.example.com"]
+     * @example ["example.com:443"]
+     * @example ["example.com", "*.example.net"]
+     * @example ["203.0.113.110"]
+     * @example ["[2001:db8::1]:80"]
+     */
+    allowNet?: string[];
+    /**
+     * Secret environment variables that are never exposed to sandbox code.
+     * The real secret values are injected on the wire when the sandbox makes
+     * HTTPS requests to the specified hosts.
+     *
+     * The key is the environment variable name.
+     *
+     * @example
+     * ```ts
+     * await using sandbox = await Sandbox.create({
+     *   secrets: {
+     *     OPENAI_API_KEY: {
+     *       hosts: ["api.openai.com"],
+     *       value: "sk-proj-your-real-key"
+     *     }
+     *   }
+     * });
+     * ```
+     */
+    secrets?: Record<string, SecretConfig>;
+    /**
+     * Whether to expose SSH access to the sandbox. If true, the `ssh` property
+     * will be populated once the sandbox is ready.
+     *
+     * @example
+     * ```ts
+     * const sandbox = await Sandbox.create({ ssh: true });
+     *
+     * console.log(sandbox.ssh);
+     * // => { username: "...", hostname: "..." }
+     * //
+     * // You can then use this info to SSH into the sandbox
+     * // e.g. `ssh username@hostname`
+     * ```
+     */
+    ssh?: boolean;
+    /** The port number to expose for HTTP access. If specified, `url` property will be populated once the sandbox is ready, and
+     * can be used to access the sandbox over HTTP.
+     *
+     * @example
+     * ```ts
+     * const sandbox = await Sandbox.create({ port: 8080 });
+     *
+     * await sandbox.deno.run({
+     *   code: "Deno.serve({ port: 8080 }, () => new Response('Hello from sandbox'));",
+     * });
+     *
+     * console.log(sandbox.url);
+     * // => "http://..."
+     * // You can then use this URL to access the sandbox over HTTP
+     * ```
+     */
+    port?: number;
+}
+/** The options for connecting to an existing sandbox. */
+export interface ConnectOptions extends BaseClientOptions {
+    /**
+     * Override the Sandbox API endpoint URL to use to create and communicate with
+     * the sandboxes.
+     *
+     * The default can also be overridden by setting the `DENO_SANDBOX_ENDPOINT`
+     * or `DENO_SANDBOX_BASE_DOMAIN` environment variables.
+     */
+    sandboxEndpoint?: string | ((region: string) => string);
+    /** Whether to enable debug logging.
+     *
+     * @default {false} */
+    debug?: boolean;
+}
+/** Options for spawning a child process using {@linkcode Sandbox.spawn}. */
+export interface SpawnOptions {
+    /** Arguments to pass to the process. */
+    args?: string[];
+    /**
+     * The working directory of the process.
+     *
+     * If not specified, the `cwd` of the parent process is used.
+     */
+    cwd?: string | URL;
+    /**
+     * Clear environment variables from parent process.
+     *
+     * Doesn't guarantee that only `env` variables are present, as the OS may set
+     * environment variables for processes.
+     *
+     * @default {false}
+     */
+    clearEnv?: boolean;
+    /** Environment variables to pass to the subprocess. */
+    env?: Record<string, string>;
+    /**
+     * An {@linkcode AbortSignal} that allows closing the process using the
+     * corresponding {@linkcode AbortController} by sending the process a
+     * SIGTERM signal.
+     */
+    signal?: AbortSignal;
+    /** How `stdin` of the spawned process should be handled.
+     *
+     * - "piped": The `stdin` of the spawned process is a writable stream that can
+     *   be used to write data to the process. The writable stream can be accessed
+     *   via {@linkcode ChildProcess.stdin}.
+     * - "null": The `stdin` of the spawned process is immediately closed and
+     *   cannot be written to. This is useful for processes that do not require
+     *   any input.
+     *
+     * Defaults to `"piped"`.
+     */
+    stdin?: "piped" | "null";
+    /** How `stdout` of the spawned process should be handled.
+     *
+     * - "piped": The `stdout` of the spawned process is a readable stream that
+     *   can be used to read data from the process. The readable stream can be
+     *   accessed via {@linkcode ChildProcess.stdout}.
+     * - "inherit": The `stdout` of the spawned process will be piped to the current
+     *   process' stdout.
+     * - "null": The `stdout` of the spawned process is discarded and cannot be
+     *   read.
+     *
+     * Defaults to `"piped"`.
+     */
+    stdout?: "piped" | "inherit" | "null";
+    /** How `stderr` of the spawned process should be handled.
+     *
+     * - "piped": The `stderr` of the spawned process is a readable stream that
+     *   can be used to read error data from the process. The readable stream can
+     *   be accessed via {@linkcode ChildProcess.stderr}.
+     * - "inherit": The `stderr` of the spawned process will be piped to the current
+     *   process' stderr.
+     * - "null": The `stderr` of the spawned process is discarded and cannot be
+     *   read.
+     *
+     * Defaults to `"piped"`.
+     */
+    stderr?: "piped" | "inherit" | "null";
+}
+/**
+ * Options for making a request using {@linkcode Sandbox.fetch} or
+ * {@linkcode JsRuntime.fetch}.
+ */
+export interface RequestInit {
+    /** The method to use for the request. If unspecified, defaults to "GET". */
+    method?: string;
+    /** Headers to include in the request. */
+    headers?: HeadersInit;
+    /** The body of the request. If the method is "GET" or "HEAD", this must not
+     * be set.
+     *
+     * If the body is a `ReadableStream`, it must be a stream of `Uint8Array`
+     * values.
+     * If the body is a `string`, it will be encoded as UTF-8.
+     */
+    body?: BodyInit;
+    /** Whether to follow redirects, error on them, or manually handle them.
+     *
+     * - "follow": Automatically follow redirects.
+     * - "manual": Manually handle redirects.
+     *
+     * @default {"follow"} */
+    redirect?: "follow" | "manual";
+    /**
+     * An AbortSignal to set request's signal.
+     */
+    signal?: AbortSignal | null;
+}
+/**
+ * Options for creating a VS Code instance using {@linkcode Sandbox.exposeVscode}
+ *
+ * @experimental This API is unstable and may change in the future
+ */
+export interface VsCodeOptions {
+    /** Environment variables to pass to the VS Code instance. */
+    env?: Record<string, string>;
+    /**
+     * The extensions to be loaded in the VSCode instance.
+     * The accepted values are:
+     * - an extension id
+     * - Coder extension marketplace
+     * - path to a .vsix file
+     */
+    extensions?: string[];
+    /**
+     * A URL of a page to load a preview window of inside the VSCode instance.
+     */
+    preview?: string;
+    /**
+     * Whether or not to disable the "Stop VSCode Instance" button in the status bar.
+     *
+     * @default false
+     */
+    disableStopButton?: boolean;
+    /**
+     * The value for the default settings.json that VSCode will use.
+     */
+    editorSettings?: Record<string, unknown>;
+}
+export { SandboxCommandBuilder, SandboxCommandError, type SandboxCommandResult };
+/** Represents a sandboxed environment running in Deno Deploy's sandbox
+ * infrastructure.
+ *
+ * Instances of this class can be created using the static
+ * {@linkcode Sandbox.create} and {@linkcode Sandbox.connect} methods.
+ */
+export declare class Sandbox implements AsyncDisposable {
+    #private;
+    /** @internal */
+    constructor(symbol: symbol);
+    /**
+     * Create a new sandbox with the given options.
+     */
+    static create(options?: SandboxOptions): Promise<Sandbox>;
+    /**
+     * Connect to an existing sandbox with the given ID and options.
+     */
+    static connect(id: string, options?: ConnectOptions): Promise<Sandbox>;
+    /**
+     * Connect to an existing sandbox with the given options.
+     */
+    static connect(options: ConnectOptions & {
+        id: string;
+    }): Promise<Sandbox>;
+    /** The ID of the sandbox. */
+    get id(): string;
+    /** A promise that resolves when the connection to the sandbox is closed. */
+    get closed(): Promise<void>;
+    /** The sandbox's file system API. */
+    get fs(): SandboxFs;
+    /** Deno related operations namespace. */
+    get deno(): SandboxDeno;
+    /** Environment variable management namespace. */
+    get env(): SandboxEnv;
+    /** SSH access info to the sandbox. */
+    get ssh(): {
+        username: string;
+        hostname: string;
+    } | undefined;
+    /** The URL to access the sandbox via HTTP. */
+    get url(): string | undefined;
+    /** Low-level way to spawn a child process.
+     *
+     * See also `sandbox.sh` for a simpler high-level API.
+     *
+     * If any stdio options are not set to `"piped"`, accessing the corresponding
+     * field on the `ChildProcess` will throw a `TypeError`.
+     *
+     * If `stdin` is set to `"piped"`, the `stdin` {@linkcode WritableStream}
+     * needs to be closed manually.
+     *
+     * @example Spawn a subprocess and pipe the output to a file
+     *
+     * ```ts
+     * await using sandbox = await Sandbox.create();
+     * const child = await sandbox.spawn("cat", {
+     *   args: [
+     *     "/path/to/input/file",
+     *   ],
+     *   stdin: "null",
+     *   stdout: "piped",
+     * });
+     *
+     * child.stdout!.pipeTo(
+     *   Deno.openSync("output", { write: true, create: true }).writable,
+     * );
+     *
+     * const status = await child.status;
+     * ```
+     *
+     * @example Spawn a subprocess and collect its output
+     *
+     * ```ts
+     * await using sandbox = await Sandbox.create();
+     * const child = await sandbox.spawn("cat", {
+     *   args: [
+     *     "/path/to/input/file",
+     *   ],
+     *   stdout: "piped",
+     *   stderr: "piped",
+     * });
+     * const { status, stdoutText, stderrText } = await child.output();
+     * console.assert(status.success);
+     * console.assert("hello\n" === stdoutText!);
+     * console.assert("world\n" === stderrText!);
+     * ```
+     *
+     * @example Spawn a subprocess with a 3s timeout
+     *
+     * ```ts
+     * import { assertEquals } from "jsr:@std/assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     *
+     * const child = await sandbox.spawn("sleep", {
+     *   args: ["10"],
+     *   signal: AbortSignal.timeout(3000),
+     * });
+     *
+     * const { status } = await child.output();
+     * assertEquals(status.signal, "SIGTERM");
+     * ```
+     */
+    spawn(command: string | URL, options?: SpawnOptions): Promise<ChildProcess>;
+    /** Run a command through a shell (bash). This does not require splitting the
+     * command into the binary and it's arguments, and supports full shell
+     * expansion.
+     *
+     * If any stdio options are not set to `"piped"`, accessing the corresponding
+     * field on the `ChildProcess` will throw a `TypeError`.
+     *
+     * If `stdin` is set to `"piped"`, the `stdin` {@linkcode WritableStream}
+     * needs to be closed manually.
+     *
+     * @example Run a shell command and get the output
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * await using sandbox = await Sandbox.create();
+     * const result = await sandbox.sh`echo hello`;
+     * console.log(result.stdout); // "hello\n"
+     * ```
+     *
+     * @example Spawn a subprocess and collect its output
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * await using sandbox = await Sandbox.create();
+     * const text = await sandbox.sh`cat /path/to/input/file`.text();
+     * console.log(text);
+     * ```
+     *
+     * @example Spawn a subprocess with a 3s timeout
+     *
+     * ```ts
+     * import { assertEquals } from "jsr:@std/assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     *
+     * const output = await sandbox.sh`sleep 101`
+     *   .signal(AbortSignal.timeout(3000));
+     *
+     * assertEquals(output.status.code, 143);
+     * ```
+     *
+     * @example Run a command with sudo privileges
+     *
+     * ```ts
+     * await using sandbox = await Sandbox.create();
+     * const output = await sandbox.sh`apt update`.sudo();
+     * console.assert(output.status.success);
+     * ```
+     */
+    sh: (templateStrings: TemplateStringsArray, ...substitutions: unknown[]) => SandboxCommandBuilder;
+    /**
+     * Fetch a resource over HTTP from the sandbox's network.
+     */
+    fetch(url: string | URL, init?: RequestInit): Promise<Response>;
+    /** Closes the sandbox instance. */
+    close(): Promise<void>;
+    /**
+     * Forcibly terminates the sandbox.
+     *
+     * @example
+     * ```ts
+     * const sandbox = await Sandbox.create();
+     * await sandbox.kill();
+     * ```
+     */
+    kill(): Promise<void>;
+    /**
+     * Request to extend the timeout of the sandbox by the specified duration.
+     * You can at max extend timeout of a sandbox by 30 minutes at once.
+     *
+     * Please note the extension is not guranteed to be the same as requested time.
+     * You should rely on the returned Date value to know the exact extension time.
+     *
+     * @param timeout The duration to extend the sandbox timeout
+     *
+     * @example
+     * ```ts
+     * const sandbox = await Sandbox.create({ timeout: "5m" });
+     * // Extend timeout by another 5 minutes
+     * let newTimeout: Date = await sandbox.extendTimeout("5m");
+     * // Or extend by 600 seconds
+     * newTimeout = await sandbox.extendTimeout("600s");
+     * ```
+     */
+    extendTimeout(timeout: `${number}s` | `${number}m`): Promise<Date>;
+    /** Disposes the sandbox instance. */
+    [Symbol.asyncDispose](): Promise<void>;
+    /** Publicly expose a HTTP service via a publicly routeable URL.
+     *
+     * NOTE: when you call this API, the target HTTP service will be PUBLICLY
+     * EXPOSED WITHOUT AUTHENTICATION. Anyone with knowledge of the public domain
+     * will be able to send arbitrary requests to the exposed service.
+     *
+     * An exposed service can either be a service listening on an arbitrary HTTP
+     * port, or a JavaScript runtime that can handle HTTP requests. You can expose
+     * a JavaScript runtime before `runtime.httpReady` returns, but any requests
+     * made to the exposed URL before that point may fail.
+     */
+    exposeHttp(target: {
+        port: number;
+    } | {
+        pid: number;
+    }): Promise<string>;
+    /** Expose an isolate over SSH, allowing access to the isolate's shell.
+     *
+     * NOTE: The SSH connection is authenticated through the 'username' field. This field is populated
+     * with a randomly generated, unique identifier. Anyone with knowledge of the 'username' can
+     * connect to the isolate's shell without further authentication.
+     *
+     * To expose an isolate, and print out the SSH command one can run to connect:
+     *
+     * ```ts
+     * await using sandbox = await Sandbox.create();
+     * const { hostname, username } = await sandbox.exposeSsh();
+     * console.log(`ssh ${username}@${hostname}`);
+     *
+     * // Keep the isolate alive so that the user can connect via SSH and do things.
+     * await new Promise((resolve) => setTimeout(resolve, 100000));
+     * ```
+     *
+     * The 'username' and 'hostname' fields will be populated with the appropriate values for the SSH
+     * connection.
+     */
+    exposeSsh(): Promise<{
+        hostname: string;
+        username: string;
+    }>;
+    /**
+     * Create a new VSCode instance on the specified path.
+     * The instance will exist until it errors out, it is killed, or the sandbox finishes.
+     * The Deno extension is always installed.
+     *
+     * @experimental This API is unstable and may change in the future
+     *
+     * @example
+     * ```ts
+     * await using sandbox = await Sandbox.create();
+     * const vscode = await sandbox.exposeVscode("/home/app");
+     * console.log(vscode.url);
+     *
+     * // Keep the isolate alive as long as vscode is running
+     * await vscode.status;
+     * ```
+     */
+    exposeVscode(path?: string, options?: VsCodeOptions): Promise<VsCode>;
+    /**
+     * Deploy the contents of the sandbox to the specified app in Deno Deploy platform.
+     *
+     * Alias for {@linkcode SandboxDeno.deploy}.
+     *
+     * @example
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.writeTextFile(
+     *   "main.ts",
+     *   'Deno.serve(() => new Response("Hello, world!"))',
+     * );
+     * const build = await sandbox.deploy("my-deno-app", {
+     *   build: { entrypoint: "main.ts" },
+     * });
+     * console.log(`Deployed revision ID: ${build.id}`);
+     * ```
+     */
+    deploy(app: string, options?: DeployOptions): Promise<Build>;
+    /** Custom inspect method */
+    [util.inspect.custom](depth: number, options: util.InspectOptionsStylized): string;
+}
+/**
+ * VSCode instance running in the sandbox
+ *
+ * @experimental This API is unstable and may change in the future
+ */
+export declare class VsCode {
+    #private;
+    /** @internal */
+    constructor(symbol: symbol);
+    /** The URL of the VSCode instance. */
+    get url(): string;
+    /** The stdout stream of the VSCode instance. */
+    get stdout(): ReadableStream<Uint8Array<ArrayBuffer>>;
+    /** The stderr stream of the VSCode instance. */
+    get stderr(): ReadableStream<Uint8Array<ArrayBuffer>>;
+    /** A promise that resolves to a {@linkcode ChildProcessStatus} object when
+     * the vscode instace exits. */
+    get status(): Promise<ChildProcessStatus>;
+    /** Kills the VSCode instance with the given signal, or `SIGTERM` if no signal
+     * is specified. Returns a promise that resolves when the signal has been sent.
+     *
+     * **THIS METHOD DOES NOT WAIT FOR THE INSTANCE TO EXIT.** After calling this
+     * method, you must still wait for the instance to exit using the
+     * {@linkcode VsCode.status} property.
+     */
+    kill(signal?: Signal): Promise<void>;
+    /** Disposes the VSCode instance. */
+    [Symbol.asyncDispose](): Promise<void>;
+    /** Custom inspect method */
+    [util.inspect.custom](depth: number, options: util.InspectOptionsStylized): string;
+}
+export declare function maybeInheritStream(mode: "piped" | "inherit" | "null", readable: ReadableStream<Uint8Array<ArrayBuffer>>, writer: NodeJS.WriteStream): ReadableStream<Uint8Array<ArrayBuffer>> | null;
+export declare function extractRegionFromSandboxId(sandboxId: string): Region;
+//# sourceMappingURL=sandbox.d.ts.map

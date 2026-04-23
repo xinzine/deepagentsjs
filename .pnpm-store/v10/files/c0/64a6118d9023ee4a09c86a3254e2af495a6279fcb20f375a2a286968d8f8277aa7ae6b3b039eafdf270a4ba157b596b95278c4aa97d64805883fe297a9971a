@@ -1,0 +1,82 @@
+import util from "node:util";
+import { type BaseClientOptions } from "./client.js";
+import type { SnapshotId, SnapshotInit, SnapshotSlug, VolumeId, VolumeSlug } from "./types.js";
+export declare function toSnapshot(data: unknown): Snapshot;
+/**
+ * The snapshot information returned from {@linkcode Volumes.snapshot}, {@linkcode Snapshots.get},
+ * and {@linkcode Snapshots.list}.
+ */
+export declare class Snapshot {
+    #private;
+    /**
+     * Create a new snapshot
+     *
+     * Alias for `client.volumes.snapshot()`
+     *
+     * @example
+     * ```ts
+     * import { Snapshot } from "@deno/sandbox";
+     *
+     * const snapshot = await Snapshot.create("my-volume", {
+     *   slug: "my-snapshot",
+     * });
+     * console.log(snapshot.id);
+     * ```
+     */
+    static create(idOrSlug: VolumeId | VolumeSlug, options: SnapshotInit & BaseClientOptions): Promise<Snapshot>;
+    /**
+     * Get snapshot info by ID or slug
+     *
+     * Alias for `client.snapshots.get()`
+     *
+     * @example
+     * ```ts
+     * import { Snapshot } from "@deno/sandbox";
+     *
+     * const snapshot = await Snapshot.get("my-snapshot");
+     * if (snapshot) {
+     *   console.log(`Snapshot flattened size: ${snapshot.flattenedSize} bytes`);
+     * }
+     * ```
+     */
+    static get(idOrSlug: SnapshotId | SnapshotSlug, options?: BaseClientOptions): Promise<Snapshot | null>;
+    /** @internal */
+    constructor(symbol: symbol, data: any);
+    /** The ID of the snapshot */
+    get id(): string;
+    /** The slug of the snapshot */
+    get slug(): string;
+    /** The region of the snapshot */
+    get region(): string;
+    /**
+     * The number of bytes currently allocated specifically for the snapshot.
+     *
+     * Snapshots created from other snapshots only store data that is different
+     * from their base snapshot, so this size may be smaller than the actual size
+     * of the file system on the snapshot.
+     *
+     * **This is not the total size of the snapshot. For that, see
+     * {@linkcode flattenedSize}.**
+     */
+    get allocatedSize(): number;
+    /**
+     * The total size of the file system on the snapshot, in bytes. This is the size
+     * the snapshot would take up if it were fully "flattened" (i.e., if all data
+     * from any snapshots it was created from were fully stored in this snapshot).
+     *
+     * Snapshots created from other snapshots only store data that is different
+     * from their base snapshot, so this size may be larger than the amount of
+     * data actually allocated for the snapshot.
+     */
+    get flattenedSize(): number;
+    /** Whether this snapshot is bootable. */
+    get isBootable(): boolean;
+    /** The volume this snapshot was created from. */
+    get volume(): {
+        id: VolumeId;
+        slug: VolumeSlug;
+    };
+    /** Custom inspect method */
+    [util.inspect.custom](depth: number, options: util.InspectOptionsStylized): string;
+}
+//# sourceMappingURL=snapshot.d.ts.map

@@ -1,0 +1,52 @@
+import type { Signal } from "../child_process.js";
+interface KillSignalState {
+    abortedCode: number | undefined;
+    listeners: ((signal: Signal) => void)[];
+}
+/** Similar to an AbortController, but for sending signals to commands. */
+export declare class KillController {
+    #private;
+    constructor();
+    /** Gets the signal associated with this controller. */
+    get signal(): KillSignal;
+    /** Send a signal to the downstream commands. */
+    kill(signal?: Signal): void;
+}
+/** Listener for when a KillSignal is killed. */
+export type KillSignalListener = (signal: Signal) => void;
+/** Similar to `AbortSignal`, but for child process signals.
+ *
+ * A `KillSignal` is considered aborted if its controller
+ * receives SIGTERM, SIGKILL, SIGABRT, SIGQUIT, or SIGINT.
+ *
+ * These can be created via a `KillController`.
+ */
+export declare class KillSignal {
+    #private;
+    /** @internal */
+    constructor(symbol: symbol, state: KillSignalState);
+    /** Returns if the command signal has ever received a SIGTERM,
+     * SIGKILL, SIGABRT, SIGQUIT, SIGINT, or SIGSTOP
+     */
+    get aborted(): boolean;
+    /** Gets the exit code to use if aborted. */
+    get abortedExitCode(): number | undefined;
+    /**
+     * Causes the provided kill signal to be triggered when this
+     * signal receives a signal.
+     */
+    linkChild(killSignal: KillSignal): {
+        unsubscribe(): void;
+    };
+    /** Adds a listener that's called when a kill signal is received. */
+    addListener(listener: KillSignalListener): void;
+    /**
+     * Removes the listener.
+     *
+     * @remarks This should be called in order to not leak memory
+     * for kill signals that live for a long time.
+     */
+    removeListener(listener: KillSignalListener): void;
+}
+export {};
+//# sourceMappingURL=kill_signal.d.ts.map

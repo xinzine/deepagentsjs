@@ -1,0 +1,143 @@
+// Copyright 2025-2026 the Deno authors. MIT license.
+var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (receiver, state, value, kind, f) {
+    if (kind === "m") throw new TypeError("Private method is not writable");
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+    return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
+};
+var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (receiver, state, kind, f) {
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+};
+var _Snapshot_id, _Snapshot_slug, _Snapshot_region, _Snapshot_allocatedSize, _Snapshot_flattenedSize, _Snapshot_isBootable, _Snapshot_volume;
+import util from "node:util";
+import { Client } from "./client.js";
+import { privateConstructSymbol } from "./utils.js";
+export function toSnapshot(data) {
+    return new Snapshot(privateConstructSymbol, data);
+}
+/**
+ * The snapshot information returned from {@linkcode Volumes.snapshot}, {@linkcode Snapshots.get},
+ * and {@linkcode Snapshots.list}.
+ */
+export class Snapshot {
+    /**
+     * Create a new snapshot
+     *
+     * Alias for `client.volumes.snapshot()`
+     *
+     * @example
+     * ```ts
+     * import { Snapshot } from "@deno/sandbox";
+     *
+     * const snapshot = await Snapshot.create("my-volume", {
+     *   slug: "my-snapshot",
+     * });
+     * console.log(snapshot.id);
+     * ```
+     */
+    static async create(idOrSlug, options) {
+        const client = new Client(options);
+        return await client.volumes.snapshot(idOrSlug, options);
+    }
+    /**
+     * Get snapshot info by ID or slug
+     *
+     * Alias for `client.snapshots.get()`
+     *
+     * @example
+     * ```ts
+     * import { Snapshot } from "@deno/sandbox";
+     *
+     * const snapshot = await Snapshot.get("my-snapshot");
+     * if (snapshot) {
+     *   console.log(`Snapshot flattened size: ${snapshot.flattenedSize} bytes`);
+     * }
+     * ```
+     */
+    static async get(idOrSlug, options) {
+        const client = new Client(options);
+        return await client.snapshots.get(idOrSlug);
+    }
+    /** @internal */
+    // deno-lint-ignore no-explicit-any
+    constructor(symbol, data) {
+        _Snapshot_id.set(this, void 0);
+        _Snapshot_slug.set(this, void 0);
+        _Snapshot_region.set(this, void 0);
+        _Snapshot_allocatedSize.set(this, void 0);
+        _Snapshot_flattenedSize.set(this, void 0);
+        _Snapshot_isBootable.set(this, void 0);
+        _Snapshot_volume.set(this, void 0);
+        if (symbol !== privateConstructSymbol) {
+            throw new TypeError("Can not construct Snapshot, use 'Snapshot.create' instead.");
+        }
+        __classPrivateFieldSet(this, _Snapshot_id, data.id, "f");
+        __classPrivateFieldSet(this, _Snapshot_slug, data.slug, "f");
+        __classPrivateFieldSet(this, _Snapshot_region, data.region, "f");
+        __classPrivateFieldSet(this, _Snapshot_allocatedSize, data.allocated_size, "f");
+        __classPrivateFieldSet(this, _Snapshot_flattenedSize, data.flattened_size, "f");
+        __classPrivateFieldSet(this, _Snapshot_isBootable, data.is_bootable, "f");
+        __classPrivateFieldSet(this, _Snapshot_volume, data.volume, "f");
+    }
+    /** The ID of the snapshot */
+    get id() {
+        return __classPrivateFieldGet(this, _Snapshot_id, "f");
+    }
+    /** The slug of the snapshot */
+    get slug() {
+        return __classPrivateFieldGet(this, _Snapshot_slug, "f");
+    }
+    /** The region of the snapshot */
+    get region() {
+        return __classPrivateFieldGet(this, _Snapshot_region, "f");
+    }
+    /**
+     * The number of bytes currently allocated specifically for the snapshot.
+     *
+     * Snapshots created from other snapshots only store data that is different
+     * from their base snapshot, so this size may be smaller than the actual size
+     * of the file system on the snapshot.
+     *
+     * **This is not the total size of the snapshot. For that, see
+     * {@linkcode flattenedSize}.**
+     */
+    get allocatedSize() {
+        return __classPrivateFieldGet(this, _Snapshot_allocatedSize, "f");
+    }
+    /**
+     * The total size of the file system on the snapshot, in bytes. This is the size
+     * the snapshot would take up if it were fully "flattened" (i.e., if all data
+     * from any snapshots it was created from were fully stored in this snapshot).
+     *
+     * Snapshots created from other snapshots only store data that is different
+     * from their base snapshot, so this size may be larger than the amount of
+     * data actually allocated for the snapshot.
+     */
+    get flattenedSize() {
+        return __classPrivateFieldGet(this, _Snapshot_flattenedSize, "f");
+    }
+    /** Whether this snapshot is bootable. */
+    get isBootable() {
+        return __classPrivateFieldGet(this, _Snapshot_isBootable, "f");
+    }
+    /** The volume this snapshot was created from. */
+    get volume() {
+        return __classPrivateFieldGet(this, _Snapshot_volume, "f");
+    }
+    /** Custom inspect method */
+    [(_Snapshot_id = new WeakMap(), _Snapshot_slug = new WeakMap(), _Snapshot_region = new WeakMap(), _Snapshot_allocatedSize = new WeakMap(), _Snapshot_flattenedSize = new WeakMap(), _Snapshot_isBootable = new WeakMap(), _Snapshot_volume = new WeakMap(), util.inspect.custom)](depth, options) {
+        if (depth < 0)
+            return options.stylize("[Snapshot]", "special");
+        const next = options.depth === null ? null : depth - 1;
+        const inner = util.inspect({
+            id: __classPrivateFieldGet(this, _Snapshot_id, "f"),
+            slug: __classPrivateFieldGet(this, _Snapshot_slug, "f"),
+            region: __classPrivateFieldGet(this, _Snapshot_region, "f"),
+            allocatedSize: __classPrivateFieldGet(this, _Snapshot_allocatedSize, "f"),
+            flattenedSize: __classPrivateFieldGet(this, _Snapshot_flattenedSize, "f"),
+        }, { ...options, depth: next });
+        return "Snapshot " + inner;
+    }
+}

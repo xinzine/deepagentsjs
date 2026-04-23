@@ -1,0 +1,984 @@
+"use strict";
+// Copyright 2025-2026 the Deno authors. MIT license.
+var __addDisposableResource = (this && this.__addDisposableResource) || function (env, value, async) {
+    if (value !== null && value !== void 0) {
+        if (typeof value !== "object" && typeof value !== "function") throw new TypeError("Object expected.");
+        var dispose, inner;
+        if (async) {
+            if (!Symbol.asyncDispose) throw new TypeError("Symbol.asyncDispose is not defined.");
+            dispose = value[Symbol.asyncDispose];
+        }
+        if (dispose === void 0) {
+            if (!Symbol.dispose) throw new TypeError("Symbol.dispose is not defined.");
+            dispose = value[Symbol.dispose];
+            if (async) inner = dispose;
+        }
+        if (typeof dispose !== "function") throw new TypeError("Object not disposable.");
+        if (inner) dispose = function() { try { inner.call(this); } catch (e) { return Promise.reject(e); } };
+        env.stack.push({ value: value, dispose: dispose, async: async });
+    }
+    else if (async) {
+        env.stack.push({ async: true });
+    }
+    return value;
+};
+var __disposeResources = (this && this.__disposeResources) || (function (SuppressedError) {
+    return function (env) {
+        function fail(e) {
+            env.error = env.hasError ? new SuppressedError(e, env.error, "An error was suppressed during disposal.") : e;
+            env.hasError = true;
+        }
+        var r, s = 0;
+        function next() {
+            while (r = env.stack.pop()) {
+                try {
+                    if (!r.async && s === 1) return s = 0, env.stack.push(r), Promise.resolve().then(next);
+                    if (r.dispose) {
+                        var result = r.dispose.call(r.value);
+                        if (r.async) return s |= 2, Promise.resolve(result).then(next, function(e) { fail(e); return next(); });
+                    }
+                    else s |= 1;
+                }
+                catch (e) {
+                    fail(e);
+                }
+            }
+            if (s === 1) return env.hasError ? Promise.reject(env.error) : Promise.resolve();
+            if (env.hasError) throw env.error;
+        }
+        return next();
+    };
+})(typeof SuppressedError === "function" ? SuppressedError : function (error, suppressed, message) {
+    var e = new Error(message);
+    return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
+});
+var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (receiver, state, value, kind, f) {
+    if (kind === "m") throw new TypeError("Private method is not writable");
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+    return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
+};
+var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (receiver, state, kind, f) {
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+var _Client_appsClient, _Client_volumesClient, _Client_snapshotsClient, _Client_revisionsClient, _Client_timelinesClient, _Client_sandboxesClient, _Client_layersClient, _ConsoleClient_token, _ConsoleClient_org, _ConsoleClient_endpoint, _AppsClient_console, _LayersClient_console, _VolumesClient_console, _SnapshotsClient_console, _RevisionsClient_console, _TimelinesClient_console, _SandboxesClient_console, _PaginatedListImpl_fetchNextPage;
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.Client = exports.AVAILABLE_REGIONS = void 0;
+exports.getTokenAndApiEndpoint = getTokenAndApiEndpoint;
+exports.getSandboxEndpoint = getSandboxEndpoint;
+exports.parseLinkHeader = parseLinkHeader;
+const node_process_1 = __importDefault(require("node:process"));
+const errors_js_1 = require("./errors.js");
+const sandbox_js_1 = require("./sandbox.js");
+const snapshot_js_1 = require("./snapshot.js");
+const stream_js_1 = require("./stream.js");
+const volume_js_1 = require("./volume.js");
+// First one is the default region
+exports.AVAILABLE_REGIONS = ["ord", "ams"];
+/** The client for managing various resources in Deno Deploy */
+class Client {
+    /** Constructs a new Client */
+    constructor(options = {}) {
+        _Client_appsClient.set(this, void 0);
+        _Client_volumesClient.set(this, void 0);
+        _Client_snapshotsClient.set(this, void 0);
+        _Client_revisionsClient.set(this, void 0);
+        _Client_timelinesClient.set(this, void 0);
+        _Client_sandboxesClient.set(this, void 0);
+        _Client_layersClient.set(this, void 0);
+        const { token, org, apiEndpoint } = getTokenAndApiEndpoint(options);
+        const client = new ConsoleClient(token, apiEndpoint, org);
+        __classPrivateFieldSet(this, _Client_appsClient, new AppsClient(client), "f");
+        __classPrivateFieldSet(this, _Client_volumesClient, new VolumesClient(client), "f");
+        __classPrivateFieldSet(this, _Client_snapshotsClient, new SnapshotsClient(client), "f");
+        __classPrivateFieldSet(this, _Client_timelinesClient, new TimelinesClient(client), "f");
+        __classPrivateFieldSet(this, _Client_revisionsClient, new RevisionsClient(client), "f");
+        __classPrivateFieldSet(this, _Client_sandboxesClient, new SandboxesClient(client), "f");
+        __classPrivateFieldSet(this, _Client_layersClient, new LayersClient(client), "f");
+    }
+    /** The apps namespace */
+    get apps() {
+        return __classPrivateFieldGet(this, _Client_appsClient, "f");
+    }
+    /** The namespace for managing volumes */
+    get volumes() {
+        return __classPrivateFieldGet(this, _Client_volumesClient, "f");
+    }
+    /** The snapshots namespace */
+    get snapshots() {
+        return __classPrivateFieldGet(this, _Client_snapshotsClient, "f");
+    }
+    /** The revisions namespace */
+    get revisions() {
+        return __classPrivateFieldGet(this, _Client_revisionsClient, "f");
+    }
+    /** The timelines namespace */
+    get timelines() {
+        return __classPrivateFieldGet(this, _Client_timelinesClient, "f");
+    }
+    /** The sandboxes namespace */
+    get sandboxes() {
+        return __classPrivateFieldGet(this, _Client_sandboxesClient, "f");
+    }
+    /** The layers namespace */
+    get layers() {
+        return __classPrivateFieldGet(this, _Client_layersClient, "f");
+    }
+}
+exports.Client = Client;
+_Client_appsClient = new WeakMap(), _Client_volumesClient = new WeakMap(), _Client_snapshotsClient = new WeakMap(), _Client_revisionsClient = new WeakMap(), _Client_timelinesClient = new WeakMap(), _Client_sandboxesClient = new WeakMap(), _Client_layersClient = new WeakMap();
+function path(strings, ...values) {
+    let result = "";
+    for (let i = 0; i < strings.length; i++) {
+        result += strings[i];
+        if (i < values.length) {
+            result += encodeURIComponent(String(values[i]));
+        }
+    }
+    return result;
+}
+class ConsoleClient {
+    constructor(token, endpoint, org) {
+        _ConsoleClient_token.set(this, void 0);
+        _ConsoleClient_org.set(this, void 0);
+        _ConsoleClient_endpoint.set(this, void 0);
+        __classPrivateFieldSet(this, _ConsoleClient_token, token, "f");
+        __classPrivateFieldSet(this, _ConsoleClient_endpoint, endpoint, "f");
+        __classPrivateFieldSet(this, _ConsoleClient_org, org, "f");
+    }
+    async request(path, options = {}) {
+        const url = new URL(path, __classPrivateFieldGet(this, _ConsoleClient_endpoint, "f"));
+        if (options.params) {
+            for (const [key, value] of Object.entries(options.params)) {
+                url.searchParams.set(key, String(value));
+            }
+        }
+        const headers = new Headers(options.headers);
+        headers.set("Authorization", `Bearer ${__classPrivateFieldGet(this, _ConsoleClient_token, "f")}`);
+        if (__classPrivateFieldGet(this, _ConsoleClient_org, "f"))
+            headers.set("X-Deno-Org", __classPrivateFieldGet(this, _ConsoleClient_org, "f"));
+        let resp;
+        try {
+            resp = await fetch(url.href, {
+                ...options,
+                headers,
+            });
+        }
+        catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            throw new errors_js_1.NetworkError(`Failed to connect to ${url.href}: ${message}`, {
+                cause: err,
+            });
+        }
+        const traceId = resp.headers.get("x-deno-trace-id") ?? undefined;
+        if (!resp.ok) {
+            let body;
+            try {
+                body = await resp.text();
+            }
+            catch (err) {
+                console.debug("Failed to read response body for error response.");
+                throw new errors_js_1.ApiError(resp.status, "INVALID_RESPONSE_BODY", `Request to ${url.href} failed with status ${resp.status}, and the response body can not be read '${String(err)}'.`, traceId);
+            }
+            let data;
+            try {
+                data = JSON.parse(body);
+            }
+            catch (err) {
+                console.debug("Failed to parse error response body as JSON:", body);
+                throw new errors_js_1.ApiError(resp.status, "INVALID_RESPONSE_BODY", `Request to ${url.href} failed with status ${resp.status}, and the response body is not valid JSON: ${String(err)}.`, traceId);
+            }
+            if (data && typeof data === "object" && "code" in data && "message" in data &&
+                typeof data.code === "string" && typeof data.message === "string") {
+                throw new errors_js_1.ApiError(resp.status, data.code, data.message, traceId);
+            }
+            else {
+                throw new errors_js_1.ApiError(resp.status, "UNKNOWN_ERROR", `Request to ${url.href} failed with status ${resp.status}, but the response body is not a valid error object.`, traceId);
+            }
+        }
+        return Object.assign(resp, {
+            [Symbol.asyncDispose]: async () => !resp.bodyUsed ? await resp.body?.cancel() : undefined,
+        });
+    }
+    get(path, options = {}) {
+        return this.request(path, options);
+    }
+    post(path, options = {}) {
+        const headers = new Headers(options.headers);
+        headers.set("Content-Type", "application/json");
+        return this.request(path, { ...options, method: "POST", headers });
+    }
+    delete(path, options = {}) {
+        return this.request(path, { ...options, method: "DELETE" });
+    }
+    patch(path, options = {}) {
+        const headers = new Headers(options.headers);
+        headers.set("Content-Type", "application/json");
+        return this.request(path, { ...options, method: "PATCH", headers });
+    }
+}
+_ConsoleClient_token = new WeakMap(), _ConsoleClient_org = new WeakMap(), _ConsoleClient_endpoint = new WeakMap();
+class AppsClient {
+    constructor(console) {
+        _AppsClient_console.set(this, void 0);
+        __classPrivateFieldSet(this, _AppsClient_console, console, "f");
+    }
+    async get(idOrSlug) {
+        const env_1 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_1, await __classPrivateFieldGet(this, _AppsClient_console, "f").get(path `/api/v2/apps/${idOrSlug}`)
+                .catch((err) => {
+                if (err instanceof errors_js_1.ApiError && err.status === 404) {
+                    return null;
+                }
+                throw err;
+            }), true);
+            if (resp === null)
+                return null;
+            return await resp.json();
+        }
+        catch (e_1) {
+            env_1.error = e_1;
+            env_1.hasError = true;
+        }
+        finally {
+            const result_1 = __disposeResources(env_1);
+            if (result_1)
+                await result_1;
+        }
+    }
+    async list(opts = {}) {
+        const env_2 = { stack: [], error: void 0, hasError: false };
+        try {
+            const params = {};
+            if (opts?.limit !== undefined)
+                params["limit"] = String(opts.limit);
+            if (opts?.cursor !== undefined)
+                params["cursor"] = opts.cursor;
+            if (opts?.layer !== undefined)
+                params["layer"] = opts.layer;
+            if (opts?.labels !== undefined) {
+                for (const [k, v] of Object.entries(opts.labels)) {
+                    params[`labels[${k}]`] = v;
+                }
+            }
+            const resp = __addDisposableResource(env_2, await __classPrivateFieldGet(this, _AppsClient_console, "f").get(path `/api/v2/apps`, { params }), true);
+            return PaginatedListImpl.createFromResponse(resp, (cursor) => this.list({ cursor, limit: opts.limit, labels: opts.labels, layer: opts.layer }));
+        }
+        catch (e_2) {
+            env_2.error = e_2;
+            env_2.hasError = true;
+        }
+        finally {
+            const result_2 = __disposeResources(env_2);
+            if (result_2)
+                await result_2;
+        }
+    }
+    async create(init = {}) {
+        const env_3 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_3, await __classPrivateFieldGet(this, _AppsClient_console, "f").post(path `/api/v2/apps`, {
+                body: JSON.stringify(init),
+            }), true);
+            return await resp.json();
+        }
+        catch (e_3) {
+            env_3.error = e_3;
+            env_3.hasError = true;
+        }
+        finally {
+            const result_3 = __disposeResources(env_3);
+            if (result_3)
+                await result_3;
+        }
+    }
+    async update(idOrSlug, updates) {
+        const env_4 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_4, await __classPrivateFieldGet(this, _AppsClient_console, "f").patch(path `/api/v2/apps/${idOrSlug}`, {
+                body: JSON.stringify(updates),
+            }), true);
+            return await resp.json();
+        }
+        catch (e_4) {
+            env_4.error = e_4;
+            env_4.hasError = true;
+        }
+        finally {
+            const result_4 = __disposeResources(env_4);
+            if (result_4)
+                await result_4;
+        }
+    }
+    async delete(idOrSlug) {
+        const env_5 = { stack: [], error: void 0, hasError: false };
+        try {
+            const _resp = __addDisposableResource(env_5, await __classPrivateFieldGet(this, _AppsClient_console, "f").delete(path `/api/v2/apps/${idOrSlug}`), true);
+        }
+        catch (e_5) {
+            env_5.error = e_5;
+            env_5.hasError = true;
+        }
+        finally {
+            const result_5 = __disposeResources(env_5);
+            if (result_5)
+                await result_5;
+        }
+    }
+    async deploy(idOrSlug, init) {
+        const env_6 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_6, await __classPrivateFieldGet(this, _AppsClient_console, "f").post(path `/api/v2/apps/${idOrSlug}/deploy`, {
+                body: JSON.stringify(init),
+            }), true);
+            return await resp.json();
+        }
+        catch (e_6) {
+            env_6.error = e_6;
+            env_6.hasError = true;
+        }
+        finally {
+            const result_6 = __disposeResources(env_6);
+            if (result_6)
+                await result_6;
+        }
+    }
+    async logs(idOrSlug, opts) {
+        const env_7 = { stack: [], error: void 0, hasError: false };
+        try {
+            const params = { start: opts.start };
+            if (opts.end !== undefined)
+                params["end"] = opts.end;
+            if (opts.revision_id !== undefined)
+                params["revision_id"] = opts.revision_id;
+            if (opts.level !== undefined)
+                params["level"] = opts.level;
+            if (opts.query !== undefined)
+                params["query"] = opts.query;
+            if (opts.cursor !== undefined)
+                params["cursor"] = opts.cursor;
+            if (opts.limit !== undefined)
+                params["limit"] = String(opts.limit);
+            const resp = __addDisposableResource(env_7, await __classPrivateFieldGet(this, _AppsClient_console, "f").get(path `/api/v2/apps/${idOrSlug}/logs`, { params }), true);
+            return PaginatedListImpl.createFromResponse(resp, (cursor) => this.logs(idOrSlug, { ...opts, cursor }), (body) => body.logs);
+        }
+        catch (e_7) {
+            env_7.error = e_7;
+            env_7.hasError = true;
+        }
+        finally {
+            const result_7 = __disposeResources(env_7);
+            if (result_7)
+                await result_7;
+        }
+    }
+}
+_AppsClient_console = new WeakMap();
+class LayersClient {
+    constructor(console) {
+        _LayersClient_console.set(this, void 0);
+        __classPrivateFieldSet(this, _LayersClient_console, console, "f");
+    }
+    async get(idOrSlug) {
+        const env_8 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_8, await __classPrivateFieldGet(this, _LayersClient_console, "f").get(path `/api/v2/layers/${idOrSlug}`)
+                .catch((err) => {
+                if (err instanceof errors_js_1.ApiError && err.status === 404) {
+                    return null;
+                }
+                throw err;
+            }), true);
+            if (resp === null)
+                return null;
+            return await resp.json();
+        }
+        catch (e_8) {
+            env_8.error = e_8;
+            env_8.hasError = true;
+        }
+        finally {
+            const result_8 = __disposeResources(env_8);
+            if (result_8)
+                await result_8;
+        }
+    }
+    async list(opts = {}) {
+        const env_9 = { stack: [], error: void 0, hasError: false };
+        try {
+            const params = {};
+            if (opts?.limit !== undefined)
+                params["limit"] = String(opts.limit);
+            if (opts?.cursor !== undefined)
+                params["cursor"] = opts.cursor;
+            if (opts?.search !== undefined)
+                params["search"] = opts.search;
+            const resp = __addDisposableResource(env_9, await __classPrivateFieldGet(this, _LayersClient_console, "f").get(path `/api/v2/layers`, { params }), true);
+            return PaginatedListImpl.createFromResponse(resp, (cursor) => this.list({ cursor, limit: opts.limit, search: opts.search }));
+        }
+        catch (e_9) {
+            env_9.error = e_9;
+            env_9.hasError = true;
+        }
+        finally {
+            const result_9 = __disposeResources(env_9);
+            if (result_9)
+                await result_9;
+        }
+    }
+    async create(init) {
+        const env_10 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_10, await __classPrivateFieldGet(this, _LayersClient_console, "f").post(path `/api/v2/layers`, {
+                body: JSON.stringify(init),
+            }), true);
+            return await resp.json();
+        }
+        catch (e_10) {
+            env_10.error = e_10;
+            env_10.hasError = true;
+        }
+        finally {
+            const result_10 = __disposeResources(env_10);
+            if (result_10)
+                await result_10;
+        }
+    }
+    async update(idOrSlug, updates) {
+        const env_11 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_11, await __classPrivateFieldGet(this, _LayersClient_console, "f").patch(path `/api/v2/layers/${idOrSlug}`, {
+                body: JSON.stringify(updates),
+            }), true);
+            return await resp.json();
+        }
+        catch (e_11) {
+            env_11.error = e_11;
+            env_11.hasError = true;
+        }
+        finally {
+            const result_11 = __disposeResources(env_11);
+            if (result_11)
+                await result_11;
+        }
+    }
+    async delete(idOrSlug) {
+        const env_12 = { stack: [], error: void 0, hasError: false };
+        try {
+            const _resp = __addDisposableResource(env_12, await __classPrivateFieldGet(this, _LayersClient_console, "f").delete(path `/api/v2/layers/${idOrSlug}`), true);
+        }
+        catch (e_12) {
+            env_12.error = e_12;
+            env_12.hasError = true;
+        }
+        finally {
+            const result_12 = __disposeResources(env_12);
+            if (result_12)
+                await result_12;
+        }
+    }
+    async apps(idOrSlug, opts = {}) {
+        const env_13 = { stack: [], error: void 0, hasError: false };
+        try {
+            const params = {};
+            if (opts?.limit !== undefined)
+                params["limit"] = String(opts.limit);
+            if (opts?.cursor !== undefined)
+                params["cursor"] = opts.cursor;
+            const resp = __addDisposableResource(env_13, await __classPrivateFieldGet(this, _LayersClient_console, "f").get(path `/api/v2/layers/${idOrSlug}/apps`, { params }), true);
+            return PaginatedListImpl.createFromResponse(resp, (cursor) => this.apps(idOrSlug, { ...opts, cursor }));
+        }
+        catch (e_13) {
+            env_13.error = e_13;
+            env_13.hasError = true;
+        }
+        finally {
+            const result_13 = __disposeResources(env_13);
+            if (result_13)
+                await result_13;
+        }
+    }
+}
+_LayersClient_console = new WeakMap();
+class VolumesClient {
+    constructor(console) {
+        _VolumesClient_console.set(this, void 0);
+        __classPrivateFieldSet(this, _VolumesClient_console, console, "f");
+    }
+    async get(idOrSlug) {
+        const env_14 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_14, await __classPrivateFieldGet(this, _VolumesClient_console, "f").get(path `/api/v2/volumes/${idOrSlug}`)
+                .catch((err) => {
+                if (err instanceof errors_js_1.ApiError && err.status === 404) {
+                    return null;
+                }
+                throw err;
+            }), true);
+            if (resp === null)
+                return null;
+            return (0, volume_js_1.toVolume)(await resp.json());
+        }
+        catch (e_14) {
+            env_14.error = e_14;
+            env_14.hasError = true;
+        }
+        finally {
+            const result_14 = __disposeResources(env_14);
+            if (result_14)
+                await result_14;
+        }
+    }
+    async list(opts = {}) {
+        const env_15 = { stack: [], error: void 0, hasError: false };
+        try {
+            const params = {};
+            if (opts?.limit !== undefined)
+                params["limit"] = String(opts.limit);
+            if (opts?.cursor !== undefined)
+                params["cursor"] = opts.cursor;
+            if (opts?.search !== undefined)
+                params["search"] = opts.search;
+            const resp = __addDisposableResource(env_15, await __classPrivateFieldGet(this, _VolumesClient_console, "f").get(path `/api/v2/volumes`, { params }), true);
+            return PaginatedListImpl.createFromResponse(resp, (cursor) => this.list({ cursor, limit: opts.limit, search: opts.search }), (items) => items.map(volume_js_1.toVolume));
+        }
+        catch (e_15) {
+            env_15.error = e_15;
+            env_15.hasError = true;
+        }
+        finally {
+            const result_15 = __disposeResources(env_15);
+            if (result_15)
+                await result_15;
+        }
+    }
+    async create(init) {
+        const env_16 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_16, await __classPrivateFieldGet(this, _VolumesClient_console, "f").post(path `/api/v2/volumes`, {
+                body: JSON.stringify(init),
+            }), true);
+            return (0, volume_js_1.toVolume)(await resp.json());
+        }
+        catch (e_16) {
+            env_16.error = e_16;
+            env_16.hasError = true;
+        }
+        finally {
+            const result_16 = __disposeResources(env_16);
+            if (result_16)
+                await result_16;
+        }
+    }
+    async delete(idOrSlug) {
+        const env_17 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_17, await __classPrivateFieldGet(this, _VolumesClient_console, "f").delete(path `/api/v2/volumes/${idOrSlug}`), true);
+            await resp.text();
+        }
+        catch (e_17) {
+            env_17.error = e_17;
+            env_17.hasError = true;
+        }
+        finally {
+            const result_17 = __disposeResources(env_17);
+            if (result_17)
+                await result_17;
+        }
+    }
+    async snapshot(idOrSlug, init) {
+        const env_18 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_18, await __classPrivateFieldGet(this, _VolumesClient_console, "f").post(path `/api/v2/volumes/${idOrSlug}/snapshot`, { body: JSON.stringify(init) }), true);
+            return (0, snapshot_js_1.toSnapshot)(await resp.json());
+        }
+        catch (e_18) {
+            env_18.error = e_18;
+            env_18.hasError = true;
+        }
+        finally {
+            const result_18 = __disposeResources(env_18);
+            if (result_18)
+                await result_18;
+        }
+    }
+}
+_VolumesClient_console = new WeakMap();
+class SnapshotsClient {
+    constructor(console) {
+        _SnapshotsClient_console.set(this, void 0);
+        __classPrivateFieldSet(this, _SnapshotsClient_console, console, "f");
+    }
+    async get(idOrSlug) {
+        const env_19 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_19, await __classPrivateFieldGet(this, _SnapshotsClient_console, "f").get(path `/api/v2/snapshots/${idOrSlug}`)
+                .catch((err) => {
+                if (err instanceof errors_js_1.ApiError && err.status === 404) {
+                    return null;
+                }
+                throw err;
+            }), true);
+            if (resp === null)
+                return null;
+            return (0, snapshot_js_1.toSnapshot)(await resp.json());
+        }
+        catch (e_19) {
+            env_19.error = e_19;
+            env_19.hasError = true;
+        }
+        finally {
+            const result_19 = __disposeResources(env_19);
+            if (result_19)
+                await result_19;
+        }
+    }
+    async list(opts = {}) {
+        const env_20 = { stack: [], error: void 0, hasError: false };
+        try {
+            const params = {};
+            if (opts?.limit !== undefined)
+                params["limit"] = String(opts.limit);
+            if (opts?.cursor !== undefined)
+                params["cursor"] = opts.cursor;
+            if (opts?.search !== undefined)
+                params["search"] = opts.search;
+            const resp = __addDisposableResource(env_20, await __classPrivateFieldGet(this, _SnapshotsClient_console, "f").get(path `/api/v2/snapshots`, { params }), true);
+            return PaginatedListImpl.createFromResponse(resp, (cursor) => this.list({ ...opts, cursor }), (items) => items.map(snapshot_js_1.toSnapshot));
+        }
+        catch (e_20) {
+            env_20.error = e_20;
+            env_20.hasError = true;
+        }
+        finally {
+            const result_20 = __disposeResources(env_20);
+            if (result_20)
+                await result_20;
+        }
+    }
+    async delete(idOrSlug) {
+        const env_21 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_21, await __classPrivateFieldGet(this, _SnapshotsClient_console, "f").delete(path `/api/v2/snapshots/${idOrSlug}`), true);
+            await resp.text();
+        }
+        catch (e_21) {
+            env_21.error = e_21;
+            env_21.hasError = true;
+        }
+        finally {
+            const result_21 = __disposeResources(env_21);
+            if (result_21)
+                await result_21;
+        }
+    }
+}
+_SnapshotsClient_console = new WeakMap();
+class RevisionsClient {
+    constructor(console) {
+        _RevisionsClient_console.set(this, void 0);
+        __classPrivateFieldSet(this, _RevisionsClient_console, console, "f");
+    }
+    async get(id) {
+        const env_22 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_22, await __classPrivateFieldGet(this, _RevisionsClient_console, "f").get(path `/api/v2/revisions/${id}`)
+                .catch((err) => {
+                if (err instanceof errors_js_1.ApiError && err.status === 404) {
+                    return null;
+                }
+                throw err;
+            }), true);
+            if (resp === null)
+                return null;
+            return await resp.json();
+        }
+        catch (e_22) {
+            env_22.error = e_22;
+            env_22.hasError = true;
+        }
+        finally {
+            const result_22 = __disposeResources(env_22);
+            if (result_22)
+                await result_22;
+        }
+    }
+    async list(app, opts = {}) {
+        const env_23 = { stack: [], error: void 0, hasError: false };
+        try {
+            const params = {};
+            if (opts?.limit !== undefined)
+                params["limit"] = String(opts.limit);
+            if (opts?.cursor !== undefined)
+                params["cursor"] = opts.cursor;
+            if (opts?.status !== undefined)
+                params["status"] = opts.status;
+            const resp = __addDisposableResource(env_23, await __classPrivateFieldGet(this, _RevisionsClient_console, "f").get(path `/api/v2/apps/${app}/revisions`, { params }), true);
+            return PaginatedListImpl.createFromResponse(resp, (cursor) => this.list(app, { ...opts, cursor }));
+        }
+        catch (e_23) {
+            env_23.error = e_23;
+            env_23.hasError = true;
+        }
+        finally {
+            const result_23 = __disposeResources(env_23);
+            if (result_23)
+                await result_23;
+        }
+    }
+    async *progress(id) {
+        const resp = await __classPrivateFieldGet(this, _RevisionsClient_console, "f").get(path `/api/v2/revisions/${id}/progress`, { headers: { Accept: "text/event-stream" } });
+        yield* resp.body.pipeThrough(new TextDecoderStream())
+            .pipeThrough(new stream_js_1.SseParseStream())
+            .pipeThrough(new TransformStream({
+            transform(data, controller) {
+                try {
+                    controller.enqueue(JSON.parse(data));
+                }
+                catch (e) {
+                    controller.error(new errors_js_1.ApiError(500, "INVALID_PROGRESS_DATA", `Received invalid progress data for revision ${id}: ${String(e)}`));
+                }
+            },
+        }));
+    }
+    async cancel(id) {
+        const env_24 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_24, await __classPrivateFieldGet(this, _RevisionsClient_console, "f").post(path `/api/v2/revisions/${id}/cancel`), true);
+            return await resp.json();
+        }
+        catch (e_24) {
+            env_24.error = e_24;
+            env_24.hasError = true;
+        }
+        finally {
+            const result_24 = __disposeResources(env_24);
+            if (result_24)
+                await result_24;
+        }
+    }
+    async timelines(id) {
+        const env_25 = { stack: [], error: void 0, hasError: false };
+        try {
+            const resp = __addDisposableResource(env_25, await __classPrivateFieldGet(this, _RevisionsClient_console, "f").get(path `/api/v2/revisions/${id}/timelines`), true);
+            return await resp.json();
+        }
+        catch (e_25) {
+            env_25.error = e_25;
+            env_25.hasError = true;
+        }
+        finally {
+            const result_25 = __disposeResources(env_25);
+            if (result_25)
+                await result_25;
+        }
+    }
+    async *buildLogs(id, opts = {}) {
+        const params = {};
+        if (opts.step)
+            params["step"] = opts.step;
+        if (opts.timeline)
+            params["timeline"] = opts.timeline;
+        const resp = await __classPrivateFieldGet(this, _RevisionsClient_console, "f").get(path `/api/v2/revisions/${id}/build_logs`, { params, headers: { Accept: "text/event-stream" } });
+        yield* resp.body.pipeThrough(new TextDecoderStream())
+            .pipeThrough(new stream_js_1.SseParseStream())
+            .pipeThrough(new TransformStream({
+            transform(data, controller) {
+                try {
+                    controller.enqueue(JSON.parse(data));
+                }
+                catch (e) {
+                    controller.error(new errors_js_1.ApiError(500, "INVALID_BUILD_LOG", `Received invalid build log data for revision ${id}: ${String(e)}`));
+                }
+            },
+        }));
+    }
+    async delete(id) {
+        const env_26 = { stack: [], error: void 0, hasError: false };
+        try {
+            const _resp = __addDisposableResource(env_26, await __classPrivateFieldGet(this, _RevisionsClient_console, "f").delete(path `/api/v2/revisions/${id}`), true);
+        }
+        catch (e_26) {
+            env_26.error = e_26;
+            env_26.hasError = true;
+        }
+        finally {
+            const result_26 = __disposeResources(env_26);
+            if (result_26)
+                await result_26;
+        }
+    }
+}
+_RevisionsClient_console = new WeakMap();
+class TimelinesClient {
+    constructor(console) {
+        _TimelinesClient_console.set(this, void 0);
+        __classPrivateFieldSet(this, _TimelinesClient_console, console, "f");
+    }
+    async list(app, opts = {}) {
+        const env_27 = { stack: [], error: void 0, hasError: false };
+        try {
+            const params = {};
+            if (opts?.limit !== undefined)
+                params["limit"] = String(opts.limit);
+            if (opts?.cursor !== undefined)
+                params["cursor"] = opts.cursor;
+            const resp = __addDisposableResource(env_27, await __classPrivateFieldGet(this, _TimelinesClient_console, "f").get(path `/api/v2/apps/${app}/timelines`, { params }), true);
+            return PaginatedListImpl.createFromResponse(resp, (cursor) => this.list(app, { ...opts, cursor }));
+        }
+        catch (e_27) {
+            env_27.error = e_27;
+            env_27.hasError = true;
+        }
+        finally {
+            const result_27 = __disposeResources(env_27);
+            if (result_27)
+                await result_27;
+        }
+    }
+}
+_TimelinesClient_console = new WeakMap();
+class SandboxesClient {
+    constructor(console) {
+        _SandboxesClient_console.set(this, void 0);
+        __classPrivateFieldSet(this, _SandboxesClient_console, console, "f");
+    }
+    create(options) {
+        return sandbox_js_1.Sandbox.create(options);
+    }
+    connect(id, options) {
+        return sandbox_js_1.Sandbox.connect(id, options);
+    }
+    async list(options = {}) {
+        const env_28 = { stack: [], error: void 0, hasError: false };
+        try {
+            const labels = options.labels ?? {};
+            const params = Object.fromEntries(Object.entries(labels).map(([k, v]) => [`labels[${k}]`, v]));
+            const resp = __addDisposableResource(env_28, await __classPrivateFieldGet(this, _SandboxesClient_console, "f").get(path `/api/v2/sandboxes`, { params }), true);
+            return (await resp.json()).map((sb) => ({
+                ...sb,
+                createdAt: new Date(sb.createdAt),
+                stoppedAt: sb.stoppedAt ? new Date(sb.stoppedAt) : null,
+            }));
+        }
+        catch (e_28) {
+            env_28.error = e_28;
+            env_28.hasError = true;
+        }
+        finally {
+            const result_28 = __disposeResources(env_28);
+            if (result_28)
+                await result_28;
+        }
+    }
+}
+_SandboxesClient_console = new WeakMap();
+function getTokenAndApiEndpoint(options = {}) {
+    const token = options.token ?? node_process_1.default.env.DENO_DEPLOY_TOKEN;
+    if (!token)
+        throw new errors_js_1.MissingTokenError();
+    const org = options.org ?? node_process_1.default.env.DENO_DEPLOY_ORG;
+    if (!token.startsWith("ddo_") && !org)
+        throw new errors_js_1.MissingOrgError();
+    const apiEndpoint = options.apiEndpoint ?? node_process_1.default.env.DENO_DEPLOY_ENDPOINT ??
+        "https://console.deno.com";
+    if (apiEndpoint.endsWith("/")) {
+        throw new errors_js_1.InvalidApiEndpoint(apiEndpoint);
+    }
+    return { token, org, apiEndpoint };
+}
+function getSandboxEndpoint(options = {}) {
+    const region = options.region ?? exports.AVAILABLE_REGIONS[0];
+    let sandboxEndpoint;
+    if (options?.sandboxEndpoint) {
+        if (typeof options.sandboxEndpoint === "function") {
+            sandboxEndpoint = options.sandboxEndpoint(region);
+        }
+        else {
+            sandboxEndpoint = options.sandboxEndpoint;
+        }
+    }
+    else if (node_process_1.default.env.DENO_SANDBOX_ENDPOINT) {
+        sandboxEndpoint = node_process_1.default.env.DENO_SANDBOX_ENDPOINT;
+    }
+    else {
+        const baseDomain = node_process_1.default.env.DENO_SANDBOX_BASE_DOMAIN ?? "sandbox-api.deno.net";
+        sandboxEndpoint = `https://${region}.${baseDomain}`;
+    }
+    if (sandboxEndpoint.endsWith("/")) {
+        throw new errors_js_1.InvalidSandboxEndpoint(sandboxEndpoint);
+    }
+    return { region, sandboxEndpoint };
+}
+class PaginatedListImpl {
+    static async createFromResponse(resp, fetchNextPage, 
+    // deno-lint-ignore no-explicit-any
+    mapper) {
+        const link = parseLinkHeader(resp.headers.get("link"));
+        const items = mapper ? mapper(await resp.json()) : await resp.json();
+        return new PaginatedListImpl(items, link.next ? new URL(link.next).searchParams.get("cursor") : null, fetchNextPage);
+    }
+    constructor(items, nextCursor, fetchNextPage) {
+        Object.defineProperty(this, "items", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "nextCursor", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        _PaginatedListImpl_fetchNextPage.set(this, void 0);
+        this.items = items;
+        this.nextCursor = nextCursor;
+        __classPrivateFieldSet(this, _PaginatedListImpl_fetchNextPage, fetchNextPage, "f");
+    }
+    get hasMore() {
+        return this.nextCursor !== null;
+    }
+    async getNextPage() {
+        return this.nextCursor ? await __classPrivateFieldGet(this, _PaginatedListImpl_fetchNextPage, "f").call(this, this.nextCursor) : null;
+    }
+    async *[(_PaginatedListImpl_fetchNextPage = new WeakMap(), Symbol.asyncIterator)]() {
+        yield* this.items;
+        let nextPage = await this.getNextPage();
+        while (nextPage) {
+            yield* nextPage.items;
+            nextPage = await nextPage.getNextPage();
+        }
+    }
+}
+/** Parses a Link header string into an object mapping rel names to URLs
+ *
+ * e.g. '<https://api.example.com/apps?cursor=abc>; rel="next", <https://api.example.com/apps?cursor=xyz>; rel="prev"'
+ * becomes
+ * {
+ *   next: 'https://api.example.com/apps?cursor=abc',
+ *   prev: 'https://api.example.com/apps?cursor=xyz'
+ * }
+ */
+function parseLinkHeader(str) {
+    if (str === null) {
+        return {};
+    }
+    const links = {};
+    for (const part of str.split(",")) {
+        const section = part.split(";");
+        if (section.length !== 2) {
+            continue;
+        }
+        const url = section[0].trim().slice(1, -1);
+        const name = section[1].trim().replace(/rel="(.*)"/, "$1");
+        links[name] = url;
+    }
+    return links;
+}

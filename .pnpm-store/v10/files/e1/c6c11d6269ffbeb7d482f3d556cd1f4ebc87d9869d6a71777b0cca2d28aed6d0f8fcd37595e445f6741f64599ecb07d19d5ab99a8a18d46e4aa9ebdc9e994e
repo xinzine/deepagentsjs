@@ -1,0 +1,17 @@
+"use strict";
+// Copyright 2025-2026 the Deno authors. MIT license.
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.setupAbort = setupAbort;
+let nextAbortId = 0;
+function setupAbort(rpcClient) {
+    const abortId = nextAbortId++;
+    const abortHandler = async () => {
+        const res = await rpcClient.call("abort", { abortId });
+        if ("error" in res)
+            throw res.error;
+    };
+    return {
+        abortId,
+        abortHandler,
+    };
+}

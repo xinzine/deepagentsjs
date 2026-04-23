@@ -1,0 +1,27 @@
+{
+  "name": "@deno/sandbox",
+  "version": "0.13.2",
+  "description": "",
+  "license": "MIT",
+  "main": "./script/mod.js",
+  "module": "./esm/mod.js",
+  "exports": {
+    ".": {
+      "import": "./esm/mod.js",
+      "require": "./script/mod.js"
+    }
+  },
+  "scripts": {},
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "ws": "^8.18.3",
+    "zod": "^4.1.5",
+    "@deno/shim-deno": "~0.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.0"
+  },
+  "_generatedBy": "dnt@dev"
+}

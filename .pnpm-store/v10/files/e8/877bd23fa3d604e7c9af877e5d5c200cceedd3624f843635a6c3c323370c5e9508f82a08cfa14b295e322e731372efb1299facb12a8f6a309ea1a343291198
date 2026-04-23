@@ -1,0 +1,73 @@
+import type { Apps, Layers, Region, Revisions, Sandboxes, Snapshots, Timelines, Volumes } from "./types.js";
+export declare const AVAILABLE_REGIONS: readonly ["ord", "ams"];
+/** The base options for {@linkcode Client}, {@linkcode Sandbox.create}, and {@linkcode Sandbox.connect} */
+export interface BaseClientOptions {
+    /**
+     * The Deno Deploy access token that should be used to authenticate requests.
+     *
+     * - When passing an organization token (starts with `ddo_`), no further
+     *   organization information is required.
+     * - When passing a personal token (starts with `ddp_`), the `org` option
+     *   must also be provided.
+     *
+     * If not provided, the `DENO_DEPLOY_TOKEN` environment variable will be used.
+     */
+    token?: string;
+    /**
+     * The Deno Deploy organization slug to operate within. This is required when
+     * using a personal access token.
+     *
+     * If not provided, the `DENO_DEPLOY_ORG` environment variable will be used.
+     */
+    org?: string;
+    /**
+     * Override the API endpoint to use to connect to Deno Deploy.
+     *
+     * The default can also be overridden by setting the `DENO_DEPLOY_ENDPOINT`
+     * environment variable.
+     */
+    apiEndpoint?: string;
+}
+/** The client for managing various resources in Deno Deploy */
+export declare class Client {
+    #private;
+    /** Constructs a new Client */
+    constructor(options?: BaseClientOptions);
+    /** The apps namespace */
+    get apps(): Apps;
+    /** The namespace for managing volumes */
+    get volumes(): Volumes;
+    /** The snapshots namespace */
+    get snapshots(): Snapshots;
+    /** The revisions namespace */
+    get revisions(): Revisions;
+    /** The timelines namespace */
+    get timelines(): Timelines;
+    /** The sandboxes namespace */
+    get sandboxes(): Sandboxes;
+    /** The layers namespace */
+    get layers(): Layers;
+}
+export declare function getTokenAndApiEndpoint(options?: BaseClientOptions): {
+    token: string;
+    org: string | undefined;
+    apiEndpoint: string;
+};
+export declare function getSandboxEndpoint(options?: {
+    region?: Region;
+    sandboxEndpoint?: string | ((region: string) => string);
+}): {
+    region: Region;
+    sandboxEndpoint: string;
+};
+/** Parses a Link header string into an object mapping rel names to URLs
+ *
+ * e.g. '<https://api.example.com/apps?cursor=abc>; rel="next", <https://api.example.com/apps?cursor=xyz>; rel="prev"'
+ * becomes
+ * {
+ *   next: 'https://api.example.com/apps?cursor=abc',
+ *   prev: 'https://api.example.com/apps?cursor=xyz'
+ * }
+ */
+export declare function parseLinkHeader(str: string | null): Record<string, string>;
+//# sourceMappingURL=client.d.ts.map

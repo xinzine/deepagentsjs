@@ -1,0 +1,8 @@
+/**
+ * Escape a shell argument to prevent injection attacks.
+ *
+ * @param arg - The argument to escape
+ * @returns The escaped argument safe for shell execution
+ */
+export declare function escapeShellArg(arg: unknown): string;
+//# sourceMappingURL=shell_escape.d.ts.map

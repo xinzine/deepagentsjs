@@ -1,0 +1,152 @@
+// Copyright 2025-2026 the Deno authors. MIT license.
+var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (receiver, state, value, kind, f) {
+    if (kind === "m") throw new TypeError("Private method is not writable");
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+    return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
+};
+var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (receiver, state, kind, f) {
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+};
+var _Volume_id, _Volume_slug, _Volume_region, _Volume_capacity, _Volume_estimatedAllocatedSize, _Volume_estimatedFlattenedSize, _Volume_isBootable, _Volume_baseSnapshot;
+import util from "node:util";
+import { Client } from "./client.js";
+import { privateConstructSymbol } from "./utils.js";
+export function toVolume(data) {
+    return new Volume(privateConstructSymbol, data);
+}
+/** The volume information returned from {@linkcode Volumes.get} */
+export class Volume {
+    /**
+     * Create a new volume
+     *
+     * Alias for `client.volumes.create()`
+     *
+     * @example
+     * ```ts
+     * import { Volume } from "@deno/sandbox";
+     *
+     * const volume = await Volume.create({
+     *   slug: "my-volume",
+     *   region: "ord",
+     *   capacity: "10GB",
+     * });
+     * console.log(volume.id);
+     * ```
+     */
+    static async create(options) {
+        const client = new Client(options);
+        return await client.volumes.create(options);
+    }
+    /**
+     * Get volume info by ID or slug
+     *
+     * Alias for `client.volumes.get()`
+     *
+     * @example
+     * ```ts
+     * import { Volume } from "@deno/sandbox";
+     *
+     * const volume = await Volume.get("my-volume");
+     * if (volume) {
+     *   console.log(`Volume capacity: ${volume.capacity} bytes`);
+     * }
+     * ```
+     */
+    static async get(idOrSlug, options) {
+        const client = new Client(options);
+        return await client.volumes.get(idOrSlug);
+    }
+    /** @internal */
+    // deno-lint-ignore no-explicit-any
+    constructor(symbol, data) {
+        _Volume_id.set(this, void 0);
+        _Volume_slug.set(this, void 0);
+        _Volume_region.set(this, void 0);
+        _Volume_capacity.set(this, void 0);
+        _Volume_estimatedAllocatedSize.set(this, void 0);
+        _Volume_estimatedFlattenedSize.set(this, void 0);
+        _Volume_isBootable.set(this, void 0);
+        _Volume_baseSnapshot.set(this, void 0);
+        if (symbol !== privateConstructSymbol) {
+            throw new TypeError("Can not construct Volume, use 'Volume.create' instead.");
+        }
+        __classPrivateFieldSet(this, _Volume_id, data.id, "f");
+        __classPrivateFieldSet(this, _Volume_slug, data.slug, "f");
+        __classPrivateFieldSet(this, _Volume_region, data.region, "f");
+        __classPrivateFieldSet(this, _Volume_capacity, data.capacity, "f");
+        __classPrivateFieldSet(this, _Volume_estimatedAllocatedSize, data.estimated_allocated_size, "f");
+        __classPrivateFieldSet(this, _Volume_estimatedFlattenedSize, data.estimated_flattened_size, "f");
+        __classPrivateFieldSet(this, _Volume_isBootable, data.is_bootable, "f");
+        __classPrivateFieldSet(this, _Volume_baseSnapshot, data.base_snapshot, "f");
+    }
+    /** The ID of the volume */
+    get id() {
+        return __classPrivateFieldGet(this, _Volume_id, "f");
+    }
+    /** The slug of the volume */
+    get slug() {
+        return __classPrivateFieldGet(this, _Volume_slug, "f");
+    }
+    /** The region of the volume */
+    get region() {
+        return __classPrivateFieldGet(this, _Volume_region, "f");
+    }
+    /** The capacity of the volume in bytes */
+    get capacity() {
+        return __classPrivateFieldGet(this, _Volume_capacity, "f");
+    }
+    /**
+     * The number of bytes currently allocated specifically for the volume.
+     *
+     * Volumes created from snapshots are "copy-on-write", so this size may be
+     * smaller than the actual size of the file system on the volume, as it does
+     * not include data shared with any snapshots the volume was created from.
+     *
+     * **This is not the total size of the volume. For that, see
+     * {@linkcode estimatedFlattenedSize}.**
+     *
+     * This is an estimate, and may lag real-time usage by multiple minutes.
+     */
+    get estimatedAllocatedSize() {
+        return __classPrivateFieldGet(this, _Volume_estimatedAllocatedSize, "f");
+    }
+    /**
+     * The total size of the file system on the volume, in bytes. This is the size
+     * the volume would take up if it were fully "flattened" (i.e., if all data
+     * from any snapshots it was created from were fully copied to the volume).
+     *
+     * Volumes created from snapshots are "copy-on-write", so this size may be
+     * larger than the amount of data actually allocated for the volume.
+     *
+     * This is an estimate, and may lag real-time usage by multiple minutes.
+     */
+    get estimatedFlattenedSize() {
+        return __classPrivateFieldGet(this, _Volume_estimatedFlattenedSize, "f");
+    }
+    /** Whether this volume is bootable. */
+    get isBootable() {
+        return __classPrivateFieldGet(this, _Volume_isBootable, "f");
+    }
+    /** The snapshot this volume was created from, if any. */
+    get baseSnapshot() {
+        return __classPrivateFieldGet(this, _Volume_baseSnapshot, "f");
+    }
+    /** Custom inspect method */
+    [(_Volume_id = new WeakMap(), _Volume_slug = new WeakMap(), _Volume_region = new WeakMap(), _Volume_capacity = new WeakMap(), _Volume_estimatedAllocatedSize = new WeakMap(), _Volume_estimatedFlattenedSize = new WeakMap(), _Volume_isBootable = new WeakMap(), _Volume_baseSnapshot = new WeakMap(), util.inspect.custom)](depth, options) {
+        if (depth < 0)
+            return options.stylize("[Volume]", "special");
+        const next = options.depth === null ? null : depth - 1;
+        const inner = util.inspect({
+            id: __classPrivateFieldGet(this, _Volume_id, "f"),
+            slug: __classPrivateFieldGet(this, _Volume_slug, "f"),
+            region: __classPrivateFieldGet(this, _Volume_region, "f"),
+            capacity: __classPrivateFieldGet(this, _Volume_capacity, "f"),
+            estimatedAllocatedSize: __classPrivateFieldGet(this, _Volume_estimatedAllocatedSize, "f"),
+            estimatedFlattenedSize: __classPrivateFieldGet(this, _Volume_estimatedFlattenedSize, "f"),
+        }, { ...options, depth: next });
+        return "Volume " + inner;
+    }
+}

@@ -1,0 +1,436 @@
+"use strict";
+// Copyright 2025-2026 the Deno authors. MIT license.
+var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (receiver, state, kind, f) {
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+};
+var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (receiver, state, value, kind, f) {
+    if (kind === "m") throw new TypeError("Private method is not writable");
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+    return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+var _DenoProcess_pid, _DenoProcess_client, _DenoProcess_listening, _DenoRepl_pid, _DenoRepl_client, _SandboxDenoImpl_client, _SandboxDenoImpl_apiEndpoint, _SandboxDenoImpl_token, _SandboxDenoImpl_org, _SandboxDenoImpl_sandboxId;
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SandboxDenoImpl = exports.DenoRepl = exports.DenoProcess = void 0;
+exports.maybeHandleDenoProcessMessage = maybeHandleDenoProcessMessage;
+const node_process_1 = __importDefault(require("node:process"));
+const node_url_1 = require("node:url");
+const abort_js_1 = require("./abort.js");
+const child_process_js_1 = require("./child_process.js");
+const client_js_1 = require("./client.js");
+const errors_js_1 = require("./errors.js");
+const sandbox_js_1 = require("./sandbox.js");
+const schema_js_1 = require("./schema.js");
+const stream_js_1 = require("./stream.js");
+const utils_js_1 = require("./utils.js");
+// store the event targets for receiving Deno watcher events
+const eventTargets = new Map();
+let setupDenoProcess;
+/** A Deno runtime environment, created by
+ * {@linkcode SandboxDeno.run}. */
+class DenoProcess extends child_process_js_1.ChildProcess {
+    /** @internal */
+    constructor(symbol) {
+        super(utils_js_1.privateConstructSymbol);
+        _DenoProcess_pid.set(this, void 0);
+        _DenoProcess_client.set(this, void 0);
+        _DenoProcess_listening.set(this, void 0);
+        if (symbol !== utils_js_1.privateConstructSymbol) {
+            throw new Error("Can not construct DenoProcess instances directly, use 'sandbox.deno.run()'");
+        }
+    }
+    /** Returns `true` if the Deno runtime has started and is ready to
+     * accept HTTP requests, by means of calling `Deno.serve()` or `node:http`'s
+     * `http.createServer()`.
+     *
+     * If this promise resolves to `true`, it means the Deno runtime is
+     * ready to accept HTTP requests. If it resolves to `false`, it means the
+     * runtime exited before an HTTP server could be started.
+     */
+    get httpReady() {
+        return __classPrivateFieldGet(this, _DenoProcess_listening, "f");
+    }
+    /** Sends a HTTP request to an HTTP server started in this JS runtime using
+     * an API such as `Deno.serve()`, or `node:http`'s `http.createServer()`.
+     *
+     * The host part of the URL is not used for routing - the request is always
+     * sent to the server running in the JS runtime. To fetch other resources from
+     * the sandbox's network, use {@linkcode Sandbox.fetch}.
+     *
+     * @example Fetch a resource from the JS runtime's HTTP server
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const runtime = await sandbox.deno.run({ code: "Deno.serve({ handler: (req) => new Response('Hello, world!') });" });
+     * const response = await runtime.fetch("https://example.com/resource");
+     * console.log(await response.text()); // "Hello, world!"
+     * ```
+     */
+    async fetch(url, init) {
+        const req = new Request(url, {
+            body: init?.body,
+            method: init?.method,
+            headers: init?.headers,
+            redirect: init?.redirect,
+        });
+        let abortId;
+        if (init?.signal) {
+            const abort = (0, abort_js_1.setupAbort)(__classPrivateFieldGet(this, _DenoProcess_client, "f"));
+            init.signal.addEventListener("abort", abort.abortHandler);
+            abortId = abort.abortId;
+        }
+        const res = await __classPrivateFieldGet(this, _DenoProcess_client, "f").call("fetch", {
+            url: req.url,
+            method: req.method,
+            headers: Array.from(req.headers.entries()),
+            redirect: req.redirect,
+            abortId,
+            bodyStreamId: req.body
+                ? (0, stream_js_1.sendStream)(req.body.getReader(), __classPrivateFieldGet(this, _DenoProcess_client, "f").rawTransport)
+                : undefined,
+            pid: __classPrivateFieldGet(this, _DenoProcess_pid, "f"),
+        });
+        if ("error" in res)
+            throw res.error;
+        return new Response(res.ok.bodyStreamId !== null
+            ? (0, stream_js_1.receiveStream)(res.ok.bodyStreamId, __classPrivateFieldGet(this, _DenoProcess_client, "f").rawTransport)
+            : null, {
+            headers: res.ok.headers,
+            status: res.ok.status,
+            statusText: res.ok.statusText,
+        });
+    }
+}
+exports.DenoProcess = DenoProcess;
+_DenoProcess_pid = new WeakMap(), _DenoProcess_client = new WeakMap(), _DenoProcess_listening = new WeakMap();
+(() => {
+    setupDenoProcess = (rt, client, pid) => {
+        __classPrivateFieldSet(rt, _DenoProcess_pid, pid, "f");
+        __classPrivateFieldSet(rt, _DenoProcess_client, client, "f");
+        __classPrivateFieldSet(rt, _DenoProcess_listening, __classPrivateFieldGet(rt, _DenoProcess_client, "f").call("denoHttpWait", { pid }).then((res) => {
+            if ("error" in res)
+                throw res.error;
+            return res.ok;
+        }), "f");
+        __classPrivateFieldGet(rt, _DenoProcess_listening, "f").catch(() => { });
+    };
+})();
+let setupDenoRepl;
+/** A Deno read-eval-print-loop (REPL) environment, created by
+ * {@linkcode SandboxDeno.repl}. It allows evaluating Deno code
+ * interactively.
+ */
+class DenoRepl extends DenoProcess {
+    /** @internal */
+    constructor(symbol) {
+        super(utils_js_1.privateConstructSymbol);
+        _DenoRepl_pid.set(this, void 0);
+        _DenoRepl_client.set(this, void 0);
+        if (symbol !== utils_js_1.privateConstructSymbol) {
+            throw new Error("Can not construct JsRepl instances directly, use 'sandbox.deno.repl()'");
+        }
+    }
+    /** Evaluates the given Deno code in the REPL environment and returns
+     * the result.
+     *
+     * Return values have to be serializable - objects such as user defined
+     * classes will be returned as plain objects with their properties. Many
+     * built-in types such as `Map`, `Set`, and `Date` are supported and will be
+     * returned as their respective types.
+     *
+     * @example Evaluate code in the REPL
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const repl = await sandbox.deno.repl();
+     * const result = await repl.eval("1 + 1");
+     * console.log(result); // 2
+     * ```
+     */
+    async eval(code) {
+        const res = await __classPrivateFieldGet(this, _DenoRepl_client, "f").call("denoReplEval", {
+            pid: __classPrivateFieldGet(this, _DenoRepl_pid, "f"),
+            code,
+        });
+        if ("error" in res)
+            throw res.error;
+        return res.ok;
+    }
+    /** Calls a function in the REPL environment with the given arguments. The
+     * `fn` parameter must either be a function defined in the REPL, or a function
+     * expression that can be evaluated in the REPL, such as `(a, b) => a + b` or
+     * `function (a, b) { return a + b; }`.
+     *
+     * @example Call a function in the REPL
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using repl = await sandbox.deno.repl();
+     * await repl.eval("function add(a, b) { return a + b; }");
+     * const result = await repl.call("add", 1, 2);
+     * console.log(result); // 3
+     * ```
+     *
+     * @example Call an anonymous function in the REPL
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const repl = await sandbox.deno.repl();
+     * const result = await repl.call("(a, b) => a + b", 1, 2);
+     * console.log(result); // 3
+     * ```
+     */
+    async call(fn, ...args) {
+        const res = await __classPrivateFieldGet(this, _DenoRepl_client, "f").call("denoReplCall", {
+            pid: __classPrivateFieldGet(this, _DenoRepl_pid, "f"),
+            fn,
+            args,
+        });
+        if ("error" in res)
+            throw res.error;
+        return res.ok;
+    }
+    /** Closes the REPL instance. */
+    async close() {
+        const res = await __classPrivateFieldGet(this, _DenoRepl_client, "f").call("denoReplClose", { pid: __classPrivateFieldGet(this, _DenoRepl_pid, "f") });
+        if ("error" in res) {
+            if (typeof res.error === "object" && res.error !== null && "code" in res.error &&
+                res.error.code === "ENOENT")
+                return;
+            throw res.error;
+        }
+    }
+    /** Disposes the JS REPL instance. */
+    async [(_DenoRepl_pid = new WeakMap(), _DenoRepl_client = new WeakMap(), Symbol.asyncDispose)]() {
+        await Promise.all([
+            super[Symbol.asyncDispose](),
+            this.close(),
+        ]);
+    }
+}
+exports.DenoRepl = DenoRepl;
+(() => {
+    setupDenoRepl = (repl, client, pid) => {
+        __classPrivateFieldSet(repl, _DenoRepl_pid, pid, "f");
+        __classPrivateFieldSet(repl, _DenoRepl_client, client, "f");
+    };
+})();
+class SandboxDenoImpl {
+    constructor(options) {
+        _SandboxDenoImpl_client.set(this, void 0);
+        _SandboxDenoImpl_apiEndpoint.set(this, void 0);
+        _SandboxDenoImpl_token.set(this, void 0);
+        _SandboxDenoImpl_org.set(this, void 0);
+        _SandboxDenoImpl_sandboxId.set(this, void 0);
+        __classPrivateFieldSet(this, _SandboxDenoImpl_client, options.client, "f");
+        __classPrivateFieldSet(this, _SandboxDenoImpl_apiEndpoint, options.apiEndpoint, "f");
+        __classPrivateFieldSet(this, _SandboxDenoImpl_token, options.token, "f");
+        __classPrivateFieldSet(this, _SandboxDenoImpl_org, options.org, "f");
+        __classPrivateFieldSet(this, _SandboxDenoImpl_sandboxId, options.sandboxId, "f");
+    }
+    async run(options) {
+        const { signal, stdin = "null", stdout = "inherit", stderr = "inherit", cwd, scriptArgs, clearEnv, env, } = options;
+        let start;
+        if ("entrypoint" in options) {
+            start = { entrypoint: normalizePath(options.entrypoint), watch: options.watch };
+        }
+        else {
+            start = { code: options.code, extension: options.extension ?? "ts" };
+        }
+        let stdinStreamId;
+        let stdinStream = null;
+        if (stdin === "piped") {
+            const ts = new TransformStream();
+            stdinStream = ts.writable;
+            stdinStreamId = (0, stream_js_1.sendStream)(ts.readable.getReader(), __classPrivateFieldGet(this, _SandboxDenoImpl_client, "f").rawTransport);
+        }
+        const res = await __classPrivateFieldGet(this, _SandboxDenoImpl_client, "f").call("spawnDeno", {
+            stdinStreamId,
+            stdout: stdout === "inherit" ? "piped" : stdout,
+            stderr: stderr === "inherit" ? "piped" : stderr,
+            cwd: cwd !== undefined ? normalizePath(cwd) : undefined,
+            scriptArgs,
+            clearEnv,
+            env,
+            ...start,
+        });
+        if ("error" in res)
+            throw res.error;
+        let stdoutStream = null;
+        let stderrStream = null;
+        if (res.ok.stdoutStreamId !== null) {
+            stdoutStream = (0, sandbox_js_1.maybeInheritStream)(stdout, (0, stream_js_1.receiveStream)(res.ok.stdoutStreamId, __classPrivateFieldGet(this, _SandboxDenoImpl_client, "f").rawTransport), node_process_1.default.stdout);
+        }
+        if (res.ok.stderrStreamId !== null) {
+            stderrStream = (0, sandbox_js_1.maybeInheritStream)(stderr, (0, stream_js_1.receiveStream)(res.ok.stderrStreamId, __classPrivateFieldGet(this, _SandboxDenoImpl_client, "f").rawTransport), node_process_1.default.stderr);
+        }
+        const rt = new DenoProcess(utils_js_1.privateConstructSymbol);
+        (0, child_process_js_1.setupChildProcess)(rt, __classPrivateFieldGet(this, _SandboxDenoImpl_client, "f"), res.ok.pid, stdinStream, stdoutStream, stderrStream);
+        setupDenoProcess(rt, __classPrivateFieldGet(this, _SandboxDenoImpl_client, "f"), res.ok.pid);
+        const watcherId = res.ok.watcherId;
+        if (watcherId) {
+            eventTargets.set(watcherId, rt);
+            rt.status.finally(() => eventTargets.delete(watcherId));
+        }
+        signal?.addEventListener("abort", () => {
+            rt.kill().catch(console.error);
+        });
+        return rt;
+    }
+    async eval(code) {
+        const isolate = await this.repl();
+        const output = await isolate.eval(code);
+        await isolate.close();
+        return output;
+    }
+    async repl(options = {}) {
+        const { signal, stdin = "null", stdout = "inherit", stderr = "inherit", cwd, scriptArgs, clearEnv, env, } = options;
+        let stdinStreamId;
+        let stdinStream = null;
+        if (stdin === "piped") {
+            const ts = new TransformStream();
+            stdinStream = ts.writable;
+            stdinStreamId = (0, stream_js_1.sendStream)(ts.readable.getReader(), __classPrivateFieldGet(this, _SandboxDenoImpl_client, "f").rawTransport);
+        }
+        const res = await __classPrivateFieldGet(this, _SandboxDenoImpl_client, "f").call("spawnDenoRepl", {
+            stdinStreamId,
+            stdout: stdout === "inherit" ? "piped" : stdout,
+            stderr: stderr === "inherit" ? "piped" : stderr,
+            cwd: cwd !== undefined ? normalizePath(cwd) : undefined,
+            scriptArgs,
+            clearEnv,
+            env,
+        });
+        if ("error" in res)
+            throw res.error;
+        let stdoutStream = null;
+        let stderrStream = null;
+        if (res.ok.stdoutStreamId !== null) {
+            stdoutStream = (0, sandbox_js_1.maybeInheritStream)(stdout, (0, stream_js_1.receiveStream)(res.ok.stdoutStreamId, __classPrivateFieldGet(this, _SandboxDenoImpl_client, "f").rawTransport), node_process_1.default.stdout);
+        }
+        if (res.ok.stderrStreamId !== null) {
+            stderrStream = (0, sandbox_js_1.maybeInheritStream)(stderr, (0, stream_js_1.receiveStream)(res.ok.stderrStreamId, __classPrivateFieldGet(this, _SandboxDenoImpl_client, "f").rawTransport), node_process_1.default.stderr);
+        }
+        const repl = new DenoRepl(utils_js_1.privateConstructSymbol);
+        (0, child_process_js_1.setupChildProcess)(repl, __classPrivateFieldGet(this, _SandboxDenoImpl_client, "f"), res.ok.pid, stdinStream, stdoutStream, stderrStream);
+        setupDenoProcess(repl, __classPrivateFieldGet(this, _SandboxDenoImpl_client, "f"), res.ok.pid);
+        setupDenoRepl(repl, __classPrivateFieldGet(this, _SandboxDenoImpl_client, "f"), res.ok.pid);
+        signal?.addEventListener("abort", () => {
+            repl.kill().catch(console.error);
+        });
+        return repl;
+    }
+    async deploy(app, options) {
+        try {
+            const url = new URL(__classPrivateFieldGet(this, _SandboxDenoImpl_apiEndpoint, "f"));
+            url.pathname = `/api/v2/sandboxes/${__classPrivateFieldGet(this, _SandboxDenoImpl_sandboxId, "f")}/deploy`;
+            const headers = {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${__classPrivateFieldGet(this, _SandboxDenoImpl_token, "f")}`,
+            };
+            if (__classPrivateFieldGet(this, _SandboxDenoImpl_org, "f"))
+                headers["X-Deno-Org"] = __classPrivateFieldGet(this, _SandboxDenoImpl_org, "f");
+            const build = options?.build ?? {};
+            const resp = await fetch(url.href, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                    app,
+                    entrypoint: build?.entrypoint ?? "main.ts",
+                    args: build?.args,
+                    production: options?.production,
+                    preview: options?.preview,
+                    path: options?.path ?? "/home/app",
+                    mode: build?.mode ?? "none",
+                    frameworkPreset: ("frameworkPreset" in build && build.frameworkPreset) || "",
+                    installCommand: "installCommand" in build ? build.installCommand : undefined,
+                    buildCommand: "buildCommand" in build ? build.buildCommand : undefined,
+                    buildDirectory: "buildDirectory" in build ? build.buildDirectory : undefined,
+                }),
+            });
+            if (!resp.ok) {
+                const body = await resp.text();
+                throw new Error(`Failed to create deployment job: ${resp.status} ${body}`);
+            }
+            const json = await resp.json();
+            const id = json.revision_id;
+            const apiEndpoint = __classPrivateFieldGet(this, _SandboxDenoImpl_apiEndpoint, "f");
+            const token = __classPrivateFieldGet(this, _SandboxDenoImpl_token, "f");
+            const org = __classPrivateFieldGet(this, _SandboxDenoImpl_org, "f");
+            return {
+                id,
+                get done() {
+                    // deno-lint-ignore no-async-promise-executor
+                    return new Promise(async (resolve, reject) => {
+                        try {
+                            const url = new URL(apiEndpoint);
+                            url.pathname = `/api/v2/revisions/${id}/progress`;
+                            const stream = (await fetch(url.href, { headers })).body;
+                            // Wait for the progress stream to end
+                            await stream.pipeTo(new WritableStream({ write() { } }));
+                            url.pathname = `/api/v2/revisions/${id}`;
+                            const revision = await fetch(url.href, { headers }).then((r) => r.json());
+                            url.pathname = `/api/v2/revisions/${id}/timelines`;
+                            const timelines = await fetch(url.href, { headers }).then((r) => r.json());
+                            const resp = Object.assign(revision, { timelines });
+                            resolve(resp);
+                        }
+                        catch (e) {
+                            const message = e instanceof Error ? e.message : String(e);
+                            reject(new errors_js_1.DeployError("Failed to get deployment status: " + message, { cause: e }));
+                        }
+                    });
+                },
+                logs() {
+                    return new client_js_1.Client({ apiEndpoint, token, org }).revisions.buildLogs(id);
+                },
+            };
+        }
+        catch (err) {
+            if (err instanceof Error) {
+                if (err.cause instanceof Error) {
+                    throw new errors_js_1.DeployError(`Failed to create deployment job: ${err.cause.message}`, {
+                        cause: err.cause,
+                    });
+                }
+                throw new errors_js_1.DeployError(`Failed to create deployment job: ${err.message}`);
+            }
+            throw err;
+        }
+    }
+}
+exports.SandboxDenoImpl = SandboxDenoImpl;
+_SandboxDenoImpl_client = new WeakMap(), _SandboxDenoImpl_apiEndpoint = new WeakMap(), _SandboxDenoImpl_token = new WeakMap(), _SandboxDenoImpl_org = new WeakMap(), _SandboxDenoImpl_sandboxId = new WeakMap();
+Object.defineProperty(SandboxDenoImpl, "name", { value: "Sandbox.deno" });
+function normalizePath(path) {
+    if (typeof path === "string")
+        return path;
+    return (0, node_url_1.fileURLToPath)(path);
+}
+function maybeHandleDenoProcessMessage(message) {
+    switch (message.method) {
+        case "$sandbox.deno.watcher.restart": {
+            let params;
+            try {
+                params = schema_js_1.denoWatcherRestartSchema.parse(message.params);
+            }
+            catch (error) {
+                console.error("Invalid deno watcher restart params:", error);
+                return true;
+            }
+            eventTargets.get(params.watcherId)?.dispatchEvent(new Event("restart"));
+            return true;
+        }
+        default:
+            return false;
+    }
+}

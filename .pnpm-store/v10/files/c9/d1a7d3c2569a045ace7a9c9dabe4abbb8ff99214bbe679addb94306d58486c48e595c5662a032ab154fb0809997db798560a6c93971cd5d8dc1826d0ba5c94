@@ -1,0 +1,232 @@
+// Copyright 2025-2026 the Deno authors. MIT license.
+/** The base class for all sandbox SDK errors. */
+export class SandboxSdkError extends Error {
+}
+/** Error thrown when a connection to the sandbox cannot be established. */
+export class ConnectionEstablishmentError extends SandboxSdkError {
+    /** Constructs a ConnectionEstablishmentError */
+    constructor(status, code, message, traceId) {
+        super(`${message} (status: ${status}, code: ${code}${traceId ? `, traceId: ${traceId}` : ""})`);
+        /** The HTTP status code associated with the error */
+        Object.defineProperty(this, "status", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        /** The error code associated with the error */
+        Object.defineProperty(this, "code", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        /** The trace ID associated with the error */
+        Object.defineProperty(this, "traceId", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.name = "ConnectionEstablishmentError";
+        this.status = status;
+        this.code = code;
+        this.traceId = traceId;
+    }
+}
+/** Error thrown when an RPC error occurs. */
+export class RpcError extends SandboxSdkError {
+    /** Constructs an RpcError */
+    constructor(code, message, data) {
+        super(message);
+        /** The RPC error code */
+        Object.defineProperty(this, "code", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        /** Additional data associated with the error */
+        Object.defineProperty(this, "data", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.code = code;
+        this.data = data;
+        this.name = "RpcError";
+    }
+}
+/** Error thrown when the connection to the sandbox is unexpectedly closed. */
+export class ConnectionClosedError extends SandboxSdkError {
+    /** Constructs a ConnectionClosedError */
+    constructor(code, reason) {
+        const message = code !== undefined
+            ? `Connection closed (code: ${code}${reason ? `, reason: ${reason}` : ""})`
+            : "Connection to the sandbox was already closed";
+        super(message);
+        /** The WebSocket close code (RFC 6455) */
+        Object.defineProperty(this, "code", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        /** The close reason provided by the server */
+        Object.defineProperty(this, "reason", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.name = "ConnectionClosedError";
+        this.code = code;
+        this.reason = reason;
+    }
+}
+/** Error thrown when a command fails. */
+export class SandboxCommandError extends Error {
+    /** Constructs a SandboxCommandError */
+    constructor(message, code) {
+        super(message);
+        Object.defineProperty(this, "code", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: code
+        });
+        this.name = "SandboxCommandError";
+    }
+}
+/** Error thrown when an invalid timeout is provided. */
+export class InvalidTimeoutError extends SandboxSdkError {
+    /** Constructs an InvalidTimeoutError */
+    constructor(message) {
+        super(message);
+        this.name = "InvalidTimeoutError";
+    }
+}
+/** Error thrown when an invalid memory value is provided. */
+export class InvalidMemoryError extends SandboxSdkError {
+    /** Constructs an InvalidMemoryError */
+    constructor(message) {
+        super(message);
+        this.name = "InvalidMemoryError";
+    }
+}
+/** Error thrown when no token is provided. */
+export class MissingTokenError extends SandboxSdkError {
+    /** Constructs a MissingTokenError */
+    constructor() {
+        super("An access token is required to create a sandbox. Pass it as the 'token' option, or set the 'DENO_DEPLOY_TOKEN' environment variable.");
+        this.name = "MissingTokenError";
+    }
+}
+/** Error thrown when the token is not an organization token and no organization is specified. */
+export class MissingOrgError extends SandboxSdkError {
+    /** Constructs a MissingOrgError */
+    constructor() {
+        super("An access token was provided, but it is not an organization token and no organization was provided via the 'org' option or the 'DENO_DEPLOY_ORG' environment variable.");
+        this.name = "MissingOrgError";
+    }
+}
+/** Error thrown when the API endpoint is invalid. */
+export class InvalidApiEndpoint extends SandboxSdkError {
+    /** Constructs a InvalidApiEndpoint */
+    constructor(invalidApiEndpoint) {
+        super(`The provided API endpoint ('${invalidApiEndpoint}') is invalid, it should not end with \`/\`.`);
+        this.name = "InvalidApiEndpoint";
+    }
+}
+/** Error thrown when the sandbox endpoint is invalid. */
+export class InvalidSandboxEndpoint extends SandboxSdkError {
+    /** Constructs a InvalidSandboxEndpoint */
+    constructor(invalidSandboxEndpoint) {
+        super(`The provided sandbox endpoint ('${invalidSandboxEndpoint}') is invalid, it should not end with \`/\`.`);
+        this.name = "InvalidSandboxEndpoint";
+    }
+}
+/** Error thrown when an invalid token is provided. */
+export class InvalidTokenError extends SandboxSdkError {
+    /** Constructs an InvalidTokenError */
+    constructor(message) {
+        super(message);
+        this.name = "InvalidTokenError";
+    }
+}
+/** Error thrown when killing a sandbox fails. */
+export class SandboxKillError extends SandboxSdkError {
+    /** Constructs a SandboxKillError */
+    constructor(status, response) {
+        super(`Failed to kill sandbox: ${status} ${response}`);
+        /** The HTTP status code associated with the error */
+        Object.defineProperty(this, "status", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        /** The response text associated with the error */
+        Object.defineProperty(this, "response", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.name = "SandboxKillError";
+        this.status = status;
+        this.response = response;
+    }
+}
+/** Error thrown when a deployment fails. */
+export class DeployError extends SandboxSdkError {
+    /** Constructs a DeployError */
+    constructor(message, { cause } = {}) {
+        super(message, { cause });
+        this.name = "DeployError";
+    }
+}
+/** Error thrown when a network error occurs. */
+export class NetworkError extends SandboxSdkError {
+    /** Constructs a NetworkError */
+    constructor(message, { cause } = {}) {
+        super(message, { cause });
+        this.name = "NetworkError";
+    }
+}
+/** Error thrown when an API error occurs. */
+export class ApiError extends Error {
+    /** Constructs an ApiError */
+    constructor(status, code, message, traceId) {
+        if (traceId) {
+            message = `${message} (Trace ID: ${traceId})`;
+        }
+        super(message);
+        /** The HTTP status code associated with the error */
+        Object.defineProperty(this, "status", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        /** The error code associated with the error */
+        Object.defineProperty(this, "code", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        /** The trace ID associated with the error */
+        Object.defineProperty(this, "traceId", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.status = status;
+        this.code = code;
+        this.traceId = traceId;
+        this.name = "ClientError";
+    }
+}

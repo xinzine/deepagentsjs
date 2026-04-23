@@ -1,0 +1,19 @@
+// Copyright 2025-2026 the Deno authors. MIT license.
+/**
+ * Escape a shell argument to prevent injection attacks.
+ *
+ * @param arg - The argument to escape
+ * @returns The escaped argument safe for shell execution
+ */
+export function escapeShellArg(arg) {
+    if (arg == null)
+        return "''";
+    const str = String(arg);
+    if (str === "")
+        return "''";
+    // If the string contains only safe characters, return as-is
+    if (/^[a-zA-Z0-9_/.\\-]+$/.test(str))
+        return str;
+    // Otherwise, single-quote and escape any single quotes
+    return "'" + str.replace(/'/g, "'\"'\"'") + "'";
+}

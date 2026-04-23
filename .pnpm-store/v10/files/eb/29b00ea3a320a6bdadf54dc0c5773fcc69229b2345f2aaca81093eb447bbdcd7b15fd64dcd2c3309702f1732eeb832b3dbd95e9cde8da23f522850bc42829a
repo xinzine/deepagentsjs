@@ -1,0 +1,2 @@
+export declare const privateConstructSymbol: unique symbol;
+//# sourceMappingURL=utils.d.ts.map

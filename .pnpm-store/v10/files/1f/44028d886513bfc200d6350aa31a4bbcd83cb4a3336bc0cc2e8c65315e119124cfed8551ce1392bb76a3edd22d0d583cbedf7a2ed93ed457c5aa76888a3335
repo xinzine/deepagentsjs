@@ -1,0 +1,787 @@
+// Copyright 2025-2026 the Deno authors. MIT license.
+import * as dntShim from "./_dnt.shims.js";
+import { Buffer } from "node:buffer";
+import { z } from "zod";
+export function errorize(err) {
+    if (err instanceof Error)
+        return err;
+    return new Error(`Unable to serialize error value as error: ${String(err)}`);
+}
+function bytes() {
+    return z.codec(z.string(), z.instanceof((Uint8Array)), {
+        encode(value) {
+            return Buffer.from(value).toString("base64");
+        },
+        decode(value) {
+            const buffer = Buffer.from(value, "base64");
+            // Slice is needed because of https://github.com/denoland/deno/issues/31824
+            return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength).slice();
+        },
+    });
+}
+function date() {
+    return z.codec(z.string(), z.date(), {
+        encode(value) {
+            return value.toISOString();
+        },
+        decode(value) {
+            return new Date(value);
+        },
+    });
+}
+function bigint() {
+    return z.codec(z.string(), z.bigint(), {
+        encode(value) {
+            return value.toString();
+        },
+        decode(value) {
+            return BigInt(value);
+        },
+    });
+}
+function regex() {
+    return z.codec(z.object({
+        source: z.string(),
+        flags: z.string(),
+    }), z.instanceof(RegExp), {
+        encode(value) {
+            return { source: value.source, flags: value.flags };
+        },
+        decode(value) {
+            return new RegExp(value.source, value.flags);
+        },
+    });
+}
+function optional(schema) {
+    return z.codec(z.any(), z.any(), {
+        encode(value) {
+            if (value === undefined)
+                return null;
+            return schema.encode(value);
+        },
+        decode(value) {
+            if (value === null || value === undefined)
+                return undefined;
+            return schema.decode(value);
+        },
+    }).optional();
+}
+function nullable(schema) {
+    return schema.nullable().default(null);
+}
+const errorObjectSchema = z.object({
+    constructorName: z.string(),
+    message: z.string(),
+    code: nullable(z.string()),
+    stack: nullable(z.string()),
+    get cause() {
+        return nullable(errorSchema);
+    },
+    get errors() {
+        return nullable(z.array(errorSchema));
+    },
+    name: nullable(z.string()),
+    get suppressed() {
+        return nullable(errorSchema);
+    },
+    get error() {
+        return nullable(errorSchema);
+    },
+});
+export const errorSchema = z.codec(errorObjectSchema, z.instanceof(Error), {
+    encode(error) {
+        let stack = "stack" in error && typeof error.stack === "string" ? error.stack : null;
+        if (stack) {
+            console.log("stack", stack, stack.includes("at callServiceMethod (file:"));
+            if (stack.includes("at callServiceMethod (file:")) {
+                stack = stack.replace(/\n\s+at.*$/s, "\n    at <sandbox>:1:1");
+            }
+        }
+        return {
+            constructorName: error.constructor.name,
+            message: error.message,
+            code: "code" in error && typeof error.code === "string" ? error.code : null,
+            cause: "cause" in error && error.cause instanceof Error ? error.cause : null,
+            stack,
+            errors: "errors" in error && Array.isArray(error.errors) &&
+                error.errors.every((e) => e instanceof Error)
+                ? error.errors
+                : null,
+            name: "name" in error && typeof error.name === "string" ? error.name : null,
+            error: "error" in error && error.error instanceof Error ? error.error : null,
+            suppressed: "suppressed" in error && error.suppressed instanceof Error
+                ? error.suppressed
+                : null,
+        };
+    },
+    decode(value) {
+        let error;
+        function isDenoError(name) {
+            return (value.constructorName === name &&
+                typeof dntShim.Deno !== "undefined" &&
+                "errors" in dntShim.Deno &&
+                name in dntShim.Deno.errors);
+        }
+        // @ts-ignore dom vs deno types
+        const originalStackTraceLimit = Error.stackTraceLimit;
+        // @ts-ignore dom vs deno types
+        Error.stackTraceLimit = Infinity;
+        if (value.constructorName === "Error") {
+            error = new Error(value.message);
+        }
+        else if (value.constructorName === "TypeError") {
+            error = new TypeError(value.message);
+        }
+        else if (value.constructorName === "ReferenceError") {
+            error = new ReferenceError(value.message);
+        }
+        else if (value.constructorName === "SyntaxError") {
+            error = new SyntaxError(value.message);
+        }
+        else if (value.constructorName === "RangeError") {
+            error = new RangeError(value.message);
+        }
+        else if (value.constructorName === "URIError") {
+            error = new URIError(value.message);
+        }
+        else if (value.constructorName === "EvalError") {
+            error = new EvalError(value.message);
+        }
+        else if (value.constructorName === "AggregateError") {
+            error = new AggregateError(value.errors ?? [], value.message);
+        }
+        else if (value.constructorName === "DOMException" && typeof DOMException !== "undefined") {
+            error = new DOMException(value.message, value.name ?? "Error");
+        }
+        else if (
+        // @ts-ignore dom vs deno types
+        value.constructorName === "GPUValidationError" && typeof GPUValidationError !== "undefined") {
+            // @ts-ignore dom vs deno types
+            error = new GPUValidationError(value.message);
+        }
+        else if (value.constructorName === "GPUOutOfMemoryError" &&
+            // @ts-ignore dom vs deno types
+            typeof GPUOutOfMemoryError !== "undefined") {
+            // @ts-ignore dom vs deno types
+            error = new GPUOutOfMemoryError(value.message);
+        }
+        else if (
+        // @ts-ignore dom vs deno types
+        value.constructorName === "GPUInternalError" && typeof GPUInternalError !== "undefined") {
+            // @ts-ignore dom vs deno types
+            error = new GPUInternalError(value.message);
+        }
+        else if (value.constructorName === "SuppressedError" && typeof SuppressedError !== "undefined") {
+            error = new SuppressedError(value.error ?? undefined, value.suppressed ?? undefined, value.message);
+        }
+        else if (isDenoError("NotFound")) {
+            error = new dntShim.Deno.errors.NotFound(value.message);
+        }
+        else if (isDenoError("PermissionDenied")) {
+            error = new dntShim.Deno.errors.PermissionDenied(value.message);
+        }
+        else if (isDenoError("ConnectionRefused")) {
+            error = new dntShim.Deno.errors.ConnectionRefused(value.message);
+        }
+        else if (isDenoError("ConnectionReset")) {
+            error = new dntShim.Deno.errors.ConnectionReset(value.message);
+        }
+        else if (isDenoError("ConnectionAborted")) {
+            error = new dntShim.Deno.errors.ConnectionAborted(value.message);
+        }
+        else if (isDenoError("NotConnected")) {
+            error = new dntShim.Deno.errors.NotConnected(value.message);
+        }
+        else if (isDenoError("AddrInUse")) {
+            error = new dntShim.Deno.errors.AddrInUse(value.message);
+        }
+        else if (isDenoError("AddrNotAvailable")) {
+            error = new dntShim.Deno.errors.AddrNotAvailable(value.message);
+        }
+        else if (isDenoError("BrokenPipe")) {
+            error = new dntShim.Deno.errors.BrokenPipe(value.message);
+        }
+        else if (isDenoError("AlreadyExists")) {
+            error = new dntShim.Deno.errors.AlreadyExists(value.message);
+        }
+        else if (isDenoError("InvalidData")) {
+            error = new dntShim.Deno.errors.InvalidData(value.message);
+        }
+        else if (isDenoError("TimedOut")) {
+            error = new dntShim.Deno.errors.TimedOut(value.message);
+        }
+        else if (isDenoError("Interrupted")) {
+            error = new dntShim.Deno.errors.Interrupted(value.message);
+        }
+        else if (isDenoError("WriteZero")) {
+            error = new dntShim.Deno.errors.WriteZero(value.message);
+        }
+        else if (isDenoError("WouldBlock")) {
+            error = new dntShim.Deno.errors.WouldBlock(value.message);
+        }
+        else if (isDenoError("UnexpectedEof")) {
+            error = new dntShim.Deno.errors.UnexpectedEof(value.message);
+        }
+        else if (isDenoError("BadResource")) {
+            error = new dntShim.Deno.errors.BadResource(value.message);
+        }
+        else if (isDenoError("Http")) {
+            error = new dntShim.Deno.errors.Http(value.message);
+        }
+        else if (isDenoError("Busy")) {
+            error = new dntShim.Deno.errors.Busy(value.message);
+        }
+        else if (isDenoError("NotSupported")) {
+            error = new dntShim.Deno.errors.NotSupported(value.message);
+        }
+        else if (isDenoError("FilesystemLoop")) {
+            error = new dntShim.Deno.errors.FilesystemLoop(value.message);
+        }
+        else if (isDenoError("IsADirectory")) {
+            error = new dntShim.Deno.errors.IsADirectory(value.message);
+        }
+        else if (isDenoError("NetworkUnreachable")) {
+            error = new dntShim.Deno.errors.NetworkUnreachable(value.message);
+        }
+        else if (isDenoError("NotADirectory")) {
+            error = new dntShim.Deno.errors.NotADirectory(value.message);
+        }
+        else if (isDenoError("NotCapable")) {
+            error = new dntShim.Deno.errors.NotCapable(value.message);
+        }
+        else {
+            // Fallback for unknown error types - create a generic Error
+            error = new Error(value.message);
+        }
+        // @ts-ignore dom vs deno types
+        Error.stackTraceLimit = originalStackTraceLimit;
+        if (value.code !== null) {
+            // deno-lint-ignore no-explicit-any
+            error.code = value.code;
+        }
+        if (value.cause !== null) {
+            // deno-lint-ignore no-explicit-any
+            error.cause = value.cause;
+        }
+        if (value.stack !== null) {
+            // get the trace without the message
+            let originalStack = (/(:?\n\s+at [^\n]*)+$/.exec(error.stack ?? "") ?? [""])[0];
+            // remove all stack trace lines above and including `SandboxRpcClient.call`
+            originalStack = originalStack.replace(/^.*(?=\n\s+at SandboxRpcClient\.call \([^\n]+)/s, "");
+            error.stack = value.stack + originalStack;
+        }
+        return error;
+    },
+});
+export function resultSchema(schema) {
+    return z.object({ error: errorSchema.nonoptional() })
+        .or(z.object({ ok: schema }));
+}
+const abortIdSchema = optional(z.number());
+export const writeFileOptionsSchema = z.object({
+    append: optional(z.boolean()),
+    create: optional(z.boolean()),
+    createNew: optional(z.boolean()),
+    mode: optional(z.number()),
+});
+const requestInitSchema = z.object({
+    url: z.string(),
+    method: z.string(),
+    headers: z.array(z.tuple([z.string(), z.string()])),
+    redirect: z.enum(["follow", "manual"]),
+    abortId: abortIdSchema,
+    bodyStreamId: optional(z.number()),
+    pid: optional(z.number()),
+});
+const responseSchema = z.object({
+    status: z.number(),
+    statusText: z.string(),
+    headers: z.array(z.tuple([z.string(), z.string()])),
+    bodyStreamId: z.number().nullable(),
+});
+export const sandboxServiceSchema = {
+    // Common operations
+    abort: {
+        input: z.object({ abortId: z.number() }),
+        output: resultSchema(z.null()),
+    },
+    // File system
+    readFile: {
+        input: z.object({ path: z.string(), abortId: abortIdSchema }),
+        output: resultSchema(bytes()),
+    },
+    readTextFile: {
+        input: z.object({ path: z.string(), abortId: abortIdSchema }),
+        output: resultSchema(z.string()),
+    },
+    writeFile: {
+        input: z.object({
+            path: z.string(),
+            abortId: abortIdSchema,
+            options: optional(writeFileOptionsSchema),
+        }).and(z.union([
+            z.object({ content: bytes() }),
+            z.object({ contentStreamId: z.number() }),
+        ])),
+        output: resultSchema(z.null()),
+    },
+    writeTextFile: {
+        input: z.object({
+            path: z.string(),
+            abortId: abortIdSchema,
+            options: optional(writeFileOptionsSchema),
+        }).and(z.union([
+            z.object({ content: z.string() }),
+            z.object({ contentStreamId: z.number() }),
+        ])),
+        output: resultSchema(z.null()),
+    },
+    readDir: {
+        input: z.object({ path: z.string() }),
+        output: resultSchema(z.array(z.object({
+            name: z.string(),
+            isFile: z.boolean(),
+            isDirectory: z.boolean(),
+            isSymlink: z.boolean(),
+        }))),
+    },
+    remove: {
+        input: z.object({
+            path: z.string(),
+            options: optional(z.object({
+                recursive: optional(z.boolean()),
+            })),
+        }),
+        output: resultSchema(z.null()),
+    },
+    mkdir: {
+        input: z.object({
+            path: z.string(),
+            options: optional(z.object({
+                recursive: optional(z.boolean()),
+                mode: optional(z.number()),
+            })),
+        }),
+        output: resultSchema(z.null()),
+    },
+    rename: {
+        input: z.object({ oldPath: z.string(), newPath: z.string() }),
+        output: resultSchema(z.null()),
+    },
+    stat: {
+        input: z.object({ path: z.string() }),
+        output: resultSchema(z.object({
+            isFile: z.boolean(),
+            isDirectory: z.boolean(),
+            isSymlink: z.boolean(),
+            size: z.number(),
+            mtime: date(),
+            atime: date(),
+            birthtime: date(),
+            ctime: date(),
+            mode: z.number(),
+            dev: z.number(),
+            ino: z.number(),
+            nlink: z.number(),
+            uid: z.number(),
+            gid: z.number(),
+            rdev: z.number(),
+            blksize: z.number(),
+            blocks: z.number(),
+            isBlockDevice: z.boolean(),
+            isCharDevice: z.boolean(),
+            isFifo: z.boolean(),
+            isSocket: z.boolean(),
+        })),
+    },
+    chmod: {
+        input: z.object({ path: z.string(), mode: z.number() }),
+        output: resultSchema(z.null()),
+    },
+    chown: {
+        input: z.object({
+            path: z.string(),
+            uid: nullable(z.number()),
+            gid: nullable(z.number()),
+        }),
+        output: resultSchema(z.null()),
+    },
+    copyFile: {
+        input: z.object({ fromPath: z.string(), toPath: z.string() }),
+        output: resultSchema(z.null()),
+    },
+    link: {
+        input: z.object({ target: z.string(), path: z.string() }),
+        output: resultSchema(z.null()),
+    },
+    lstat: {
+        input: z.object({ path: z.string() }),
+        output: resultSchema(z.object({
+            isFile: z.boolean(),
+            isDirectory: z.boolean(),
+            isSymlink: z.boolean(),
+            size: z.number(),
+            mtime: date(),
+            atime: date(),
+            birthtime: date(),
+            ctime: date(),
+            mode: z.number(),
+            dev: z.number(),
+            ino: z.number(),
+            nlink: z.number(),
+            uid: z.number(),
+            gid: z.number(),
+            rdev: z.number(),
+            blksize: z.number(),
+            blocks: z.number(),
+            isBlockDevice: z.boolean(),
+            isCharDevice: z.boolean(),
+            isFifo: z.boolean(),
+            isSocket: z.boolean(),
+        })),
+    },
+    makeTempDir: {
+        input: z.object({
+            options: optional(z.object({
+                dir: optional(z.string()),
+                prefix: optional(z.string()),
+                suffix: optional(z.string()),
+            })),
+        }),
+        output: resultSchema(z.string()),
+    },
+    makeTempFile: {
+        input: z.object({
+            options: optional(z.object({
+                dir: optional(z.string()),
+                prefix: optional(z.string()),
+                suffix: optional(z.string()),
+            })),
+        }),
+        output: resultSchema(z.string()),
+    },
+    readLink: {
+        input: z.object({ path: z.string() }),
+        output: resultSchema(z.string()),
+    },
+    realPath: {
+        input: z.object({ path: z.string() }),
+        output: resultSchema(z.string()),
+    },
+    symlink: {
+        input: z.object({
+            target: z.string(),
+            path: z.string(),
+            options: optional(z.object({
+                type: optional(z.enum(["file", "dir", "junction"])),
+            })),
+        }),
+        output: resultSchema(z.null()),
+    },
+    truncate: {
+        input: z.object({
+            name: z.string(),
+            length: optional(z.number()),
+        }),
+        output: resultSchema(z.null()),
+    },
+    umask: {
+        input: z.object({
+            mask: optional(z.number()),
+        }),
+        output: resultSchema(z.number()),
+    },
+    utime: {
+        input: z.object({
+            path: z.string(),
+            atime: date(),
+            mtime: date(),
+        }),
+        output: resultSchema(z.null()),
+    },
+    // File handle
+    open: {
+        input: z.object({
+            path: z.string(),
+            options: optional(z.object({
+                read: optional(z.boolean()),
+                write: optional(z.boolean()),
+                append: optional(z.boolean()),
+                truncate: optional(z.boolean()),
+                create: optional(z.boolean()),
+                createNew: optional(z.boolean()),
+                mode: optional(z.number()),
+            })),
+        }),
+        output: resultSchema(z.object({ fileHandleId: z.number() })),
+    },
+    create: {
+        input: z.object({ path: z.string() }),
+        output: resultSchema(z.object({ fileHandleId: z.number() })),
+    },
+    fileClose: {
+        input: z.object({ fileHandleId: z.number() }),
+        output: resultSchema(z.null()),
+    },
+    fileLock: {
+        input: z.object({ fileHandleId: z.number(), exclusive: optional(z.boolean()) }),
+        output: resultSchema(z.null()),
+    },
+    fileRead: {
+        input: z.object({
+            fileHandleId: z.number(),
+            length: z.number(),
+        }),
+        output: resultSchema(z.object({ data: bytes().nullable() })),
+    },
+    fileSeek: {
+        input: z.object({
+            fileHandleId: z.number(),
+            offset: z.union([z.number(), bigint()]),
+            whence: z.number(),
+        }),
+        output: resultSchema(z.object({ position: z.number() })),
+    },
+    fileStat: {
+        input: z.object({ fileHandleId: z.number() }),
+        output: resultSchema(z.object({
+            isFile: z.boolean(),
+            isDirectory: z.boolean(),
+            isSymlink: z.boolean(),
+            size: z.number(),
+            mtime: date(),
+            atime: date(),
+            birthtime: date(),
+            ctime: date(),
+            mode: z.number(),
+            dev: z.number(),
+            ino: z.number(),
+            nlink: z.number(),
+            uid: z.number(),
+            gid: z.number(),
+            rdev: z.number(),
+            blksize: z.number(),
+            blocks: z.number(),
+            isBlockDevice: z.boolean(),
+            isCharDevice: z.boolean(),
+            isFifo: z.boolean(),
+            isSocket: z.boolean(),
+        })),
+    },
+    fileSync: {
+        input: z.object({ fileHandleId: z.number() }),
+        output: resultSchema(z.null()),
+    },
+    fileSyncData: {
+        input: z.object({ fileHandleId: z.number() }),
+        output: resultSchema(z.null()),
+    },
+    fileTruncate: {
+        input: z.object({ fileHandleId: z.number(), len: optional(z.number()) }),
+        output: resultSchema(z.null()),
+    },
+    fileUnlock: {
+        input: z.object({ fileHandleId: z.number() }),
+        output: resultSchema(z.null()),
+    },
+    fileUtime: {
+        input: z.object({ fileHandleId: z.number(), atime: date(), mtime: date() }),
+        output: resultSchema(z.null()),
+    },
+    fileWrite: {
+        input: z.object({ fileHandleId: z.number(), data: bytes() }),
+        output: resultSchema(z.object({ bytesWritten: z.number() })),
+    },
+    walk: {
+        input: z.object({
+            path: z.string(),
+            maxDepth: optional(z.number()),
+            includeFiles: optional(z.boolean()),
+            includeDirs: optional(z.boolean()),
+            includeSymlinks: optional(z.boolean()),
+            followSymlinks: optional(z.boolean()),
+            canonicalize: optional(z.boolean()),
+            exts: optional(z.array(z.string())),
+            match: optional(z.array(regex())),
+            skip: optional(z.array(regex())),
+        }),
+        output: resultSchema(z.object({
+            streamId: z.number(),
+        })),
+    },
+    expandGlob: {
+        input: z.object({
+            glob: z.string(),
+            extended: optional(z.boolean()),
+            globstar: optional(z.boolean()),
+            caseInsensitive: optional(z.boolean()),
+            root: optional(z.string()),
+            exclude: optional(z.array(z.string())),
+            includeDirs: optional(z.boolean()),
+            followSymlinks: optional(z.boolean()),
+            canonicalize: optional(z.boolean()),
+        }),
+        output: resultSchema(z.object({
+            streamId: z.number(),
+        })),
+    },
+    // processes
+    spawn: {
+        input: z.object({
+            command: z.string(),
+            args: optional(z.array(z.string())),
+            env: optional(z.record(z.string(), z.string())),
+            clearEnv: optional(z.boolean()),
+            cwd: optional(z.string()),
+            stdinStreamId: optional(z.number()),
+            stdout: z.enum(["piped", "null"]),
+            stderr: z.enum(["piped", "null"]),
+        }),
+        output: resultSchema(z.object({
+            pid: z.number(),
+            stdoutStreamId: z.number().nullable(),
+            stderrStreamId: z.number().nullable(),
+        })),
+    },
+    processWait: {
+        input: z.object({ pid: z.number(), vscode: optional(z.boolean()) }),
+        output: resultSchema(z.object({
+            success: z.boolean(),
+            code: z.number(),
+            signal: z.string().nullable(),
+            oom: z.enum(["high-confidence", "low-confidence"]).nullable(),
+        })),
+    },
+    processKill: {
+        input: z.object({
+            pid: z.number(),
+            signal: optional(z.string()),
+            vscode: optional(z.boolean()),
+        }),
+        output: resultSchema(z.null()),
+    },
+    spawnDeno: {
+        input: z.object({
+            env: optional(z.record(z.string(), z.string())),
+            clearEnv: optional(z.boolean()),
+            cwd: optional(z.string()),
+            stdinStreamId: optional(z.number()),
+            stdout: z.enum(["piped", "null"]),
+            stderr: z.enum(["piped", "null"]),
+            scriptArgs: optional(z.array(z.string())),
+        }).and(z.union([
+            z.object({
+                entrypoint: z.string(),
+                watch: optional(z.union([z.boolean(), z.array(z.string())])),
+            }),
+            z.object({
+                code: z.string(),
+                extension: z.enum(["js", "cjs", "mjs", "ts", "cts", "mts", "jsx", "tsx"]),
+            }),
+        ])),
+        output: resultSchema(z.object({
+            pid: z.number(),
+            stdoutStreamId: z.number().nullable(),
+            stderrStreamId: z.number().nullable(),
+            watcherId: z.string().nullable(),
+        })),
+    },
+    denoHttpWait: {
+        input: z.object({
+            pid: z.number(),
+        }),
+        output: resultSchema(z.boolean()),
+    },
+    spawnDenoRepl: {
+        input: z.object({
+            env: optional(z.record(z.string(), z.string())),
+            clearEnv: optional(z.boolean()),
+            cwd: optional(z.string()),
+            stdinStreamId: optional(z.number()),
+            stdout: z.enum(["piped", "null"]),
+            stderr: z.enum(["piped", "null"]),
+            scriptArgs: optional(z.array(z.string())),
+        }),
+        output: resultSchema(z.object({
+            pid: z.number(),
+            stdoutStreamId: z.number().nullable(),
+            stderrStreamId: z.number().nullable(),
+        })),
+    },
+    denoReplClose: {
+        input: z.object({
+            pid: z.number(),
+        }),
+        output: resultSchema(z.null()),
+    },
+    denoReplEval: {
+        input: z.object({
+            pid: z.number(),
+            code: z.string(),
+        }),
+        output: resultSchema(z.unknown()),
+    },
+    denoReplCall: {
+        input: z.object({
+            pid: z.number(),
+            fn: z.string(),
+            args: z.array(z.unknown()),
+        }),
+        output: resultSchema(z.unknown()),
+    },
+    fetch: {
+        input: requestInitSchema,
+        output: resultSchema(responseSchema),
+    },
+    exposeHttp: {
+        input: z.object({
+            domain: z.string(),
+        }).and(z.union([
+            z.object({ port: z.number().min(1).max(65535) }),
+            z.object({ pid: z.number() }),
+        ])),
+        output: resultSchema(z.null()),
+    },
+    vscode: {
+        input: z.object({
+            path: z.string(),
+            extensions: z.array(z.string()),
+            env: optional(z.record(z.string(), z.string())),
+            preview: optional(z.string()),
+            disableStopButton: optional(z.boolean()),
+            editorSettings: optional(z.record(z.string(), z.any())),
+        }),
+        output: resultSchema(z.object({
+            pid: z.number(),
+            port: z.number(),
+            stdoutStreamId: z.number(),
+            stderrStreamId: z.number(),
+        })),
+    },
+    // Environment variables
+    envGet: {
+        input: z.object({ key: z.string() }),
+        output: resultSchema(optional(z.string())),
+    },
+    envSet: {
+        input: z.object({ key: z.string(), value: z.string() }),
+        output: resultSchema(z.null()),
+    },
+    envToObject: {
+        input: z.object({}),
+        output: resultSchema(z.record(z.string(), z.string())),
+    },
+    envDelete: {
+        input: z.object({ key: z.string() }),
+        output: resultSchema(z.null()),
+    },
+};
+export const streamStartSchema = z.object({ streamId: z.number() });
+export const streamEnqueueSchema = z.object({ streamId: z.number(), data: bytes() });
+export const streamEndSchema = z.object({ streamId: z.number() });
+export const streamErrorSchema = z.object({ streamId: z.number(), error: errorSchema.nullable() });
+export const streamCancelSchema = z.object({
+    streamId: z.number(),
+    reason: errorSchema.nullable(),
+});
+export const denoWatcherRestartSchema = z.object({ watcherId: z.string() });

@@ -1,0 +1,13 @@
+import { JsonRpcNotification } from "./proto.js";
+export interface RpcNotifyTransport {
+    notify: (notification: JsonRpcNotification) => void;
+}
+export declare function logStreamResources(): void;
+export declare function sendStream(reader: ReadableStreamDefaultReader<Uint8Array>, transport: RpcNotifyTransport): number;
+export declare function receiveStream(streamId: number, transport: RpcNotifyTransport): ReadableStream<Uint8Array<ArrayBuffer>>;
+export declare function maybeHandleStreamMessage(message: JsonRpcNotification, transport: RpcNotifyTransport): boolean;
+/** Parses Server-Sent Events (SSE) data from a stream of strings. */
+export declare class SseParseStream extends TransformStream<string, string> {
+    constructor();
+}
+//# sourceMappingURL=stream.d.ts.map

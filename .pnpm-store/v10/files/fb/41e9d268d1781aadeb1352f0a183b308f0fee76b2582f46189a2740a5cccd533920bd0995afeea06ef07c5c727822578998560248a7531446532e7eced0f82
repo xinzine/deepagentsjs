@@ -1,0 +1,370 @@
+import { ChildProcess } from "./child_process.js";
+import { JsonRpcNotification } from "./proto.js";
+import { type SpawnOptions } from "./sandbox.js";
+import { SandboxRpcClient } from "./transport.js";
+import type { BuildLog, Revision } from "./types.js";
+/** The namespace for Deno related operations in a sandbox */
+export interface SandboxDeno {
+    /**
+     * Create a new Deno process from the specified entrypoint file or code.
+     * The runtime will execute the given code to completion, and then exit.
+     *
+     * @example Create a Deno process with an entrypoint file
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const runtime = await sandbox.deno.run({
+     *   entrypoint: "path/to/entrypoint.js",
+     * });
+     * ```
+     *
+     * @example Create a Deno process with inline code
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const runtime = await sandbox.deno.run({
+     *   code: "console.log('Hello, world!');",
+     * });
+     * const { status, stdout, stderr } = await runtime.output();
+     * console.log(stdout!); // "Hello, world!\n"
+     * console.log(stderr!); // ""
+     * ```
+     *
+     * @example Create a Deno process with a 3s timeout
+     *
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * import { assertEquals } from "jsr:@std/assert";
+     *
+     * await using sandbox = await Sandbox.create();
+     *
+     * const runtime = await sandbox.deno.run({
+     *   code: "setTimeout(() => console.log('done'), 10_000)",
+     *   signal: AbortSignal.timeout(3000),
+     * });
+     *
+     * const { status, stdout, stderr } = await runtime.output();
+     * assertEquals(status.signal, "SIGTERM");
+     * ```
+     *
+     * @example Creates a Deno process with file watching enabled
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * const sandbox = await Sandbox.create();
+     *
+     * await sandbox.fs.writeTextFile("main.ts", `
+     *   console.log("Hello, world!");
+     *   setTimeout(() => {}, 100_000);
+     * `);
+     *
+     * const runtime = await sandbox.deno.run({
+     *   entrypoint: "main.ts",
+     *   watch: true,
+     * });
+     *
+     * runtime.addEventListener("restart", () => {
+     *   console.log("Deno runtime restarted");
+     * });
+     *
+     * setTimeout(async () => {
+     *   await sandbox.fs.writeTextFile("main.ts", `
+     *     console.log("Hello, Sandbox!");
+     *     setTimeout(() => {}, 100_000);
+     *   `);
+     * }, 5000);
+     */
+    run(options: DenoRunOptions): Promise<DenoProcess>;
+    /** Evaluates the given Deno code in a new REPL environment.
+     *
+     * This is a convenience method that creates a new REPL, evaluates the code,
+     * and then disposes of the REPL.
+     *
+     * @example Evaluate code in a new REPL
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const result = await sandbox.deno.eval("1 + 1");
+     * console.log(result); // 2
+     * ```
+     */
+    eval<T = unknown>(code: string): Promise<T>;
+    /**
+     * Creates a new Deno read-eval-print-loop (REPL).
+     *
+     * Once started, the REPL allows interactive evaluation of JavaScript or
+     * TypeScript code. The REPL will continue running until it is
+     * explicitly closed or the process is terminated.
+     *
+     * @example Create a Deno REPL and evaluate code
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const repl = await sandbox.deno.repl();
+     * const result = await repl.eval("1 + 1");
+     * console.log(result); // 2
+     * ```
+     */
+    repl(options?: DenoReplOptions): Promise<DenoRepl>;
+    /**
+     * Deploy the contents of the sandbox to the specified app in Deno Deploy platform.
+     *
+     * @example
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await sandbox.fs.writeTextFile(
+     *   "main.ts",
+     *   'Deno.serve(() => new Response("Hi from sandbox.deploy()"))',
+     * );
+     * const build = await sandbox.deno.deploy("my-deno-app", {
+     *   build: { entrypoint: "main.ts" },
+     * });
+     * console.log(`Deployed revision ID: ${build.id}`);
+     * ```
+     */
+    deploy(app: string, options?: DeployOptions): Promise<Build>;
+}
+/** The file extension of the code. */
+export type CodeExtension = "js" | "cjs" | "mjs" | "ts" | "cts" | "mts" | "jsx" | "tsx";
+/**
+ * Options to create a Deno execution environment (isolate) using {@linkcode SandboxDeno.run}
+ */
+export type DenoRunOptions = ({
+    /** A module to read from disk and execute as the entrypoint of the
+     * Deno runtime.
+     * If this is specified, `code` must not be specified. */
+    entrypoint: string | URL;
+    /**
+     * Watch for file changes and automatically restart the Deno runtime.
+     *
+     * Files from the entrypoint module graph are watched by default.
+     * Additional paths might be watched by passing them as arguments to this flag.
+     *
+     * @default {false}
+     */
+    watch?: boolean | string[];
+} | {
+    /** Deno code to execute as the entrypoint of the
+     * Deno runtime.
+     * If this is specified, `entrypoint` must not be specified. */
+    code: string;
+    /** Which file extension to use when executing the code. If no extension is
+     * specified, the default is `"ts"`.
+     * @default "ts"
+     */
+    extension?: CodeExtension;
+}) & {
+    /** Arguments to pass to the Deno runtime, after the entrypoint. This
+     * entire array will be available to the script as `process.args` and
+     * `Deno.args`.
+     */
+    scriptArgs?: string[];
+} & Omit<SpawnOptions, "args">;
+/** Options for creating a Deno read-eval-print-loop (REPL) using
+ * {@linkcode SandboxDeno.repl}.
+ */
+export type DenoReplOptions = {
+    /** Arguments to pass to the Deno runtime, after the entrypoint. This
+     * entire array will be available to the script as `process.args` and
+     * `Deno.args`.
+     */
+    scriptArgs?: string[];
+} & Omit<SpawnOptions, "args">;
+/** A Deno runtime environment, created by
+ * {@linkcode SandboxDeno.run}. */
+export declare class DenoProcess extends ChildProcess {
+    #private;
+    /** @internal */
+    constructor(symbol: symbol);
+    /** Returns `true` if the Deno runtime has started and is ready to
+     * accept HTTP requests, by means of calling `Deno.serve()` or `node:http`'s
+     * `http.createServer()`.
+     *
+     * If this promise resolves to `true`, it means the Deno runtime is
+     * ready to accept HTTP requests. If it resolves to `false`, it means the
+     * runtime exited before an HTTP server could be started.
+     */
+    get httpReady(): Promise<boolean>;
+    /** Sends a HTTP request to an HTTP server started in this JS runtime using
+     * an API such as `Deno.serve()`, or `node:http`'s `http.createServer()`.
+     *
+     * The host part of the URL is not used for routing - the request is always
+     * sent to the server running in the JS runtime. To fetch other resources from
+     * the sandbox's network, use {@linkcode Sandbox.fetch}.
+     *
+     * @example Fetch a resource from the JS runtime's HTTP server
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const runtime = await sandbox.deno.run({ code: "Deno.serve({ handler: (req) => new Response('Hello, world!') });" });
+     * const response = await runtime.fetch("https://example.com/resource");
+     * console.log(await response.text()); // "Hello, world!"
+     * ```
+     */
+    fetch(url: string | URL, init?: RequestInit): Promise<Response>;
+}
+/** A Deno read-eval-print-loop (REPL) environment, created by
+ * {@linkcode SandboxDeno.repl}. It allows evaluating Deno code
+ * interactively.
+ */
+export declare class DenoRepl extends DenoProcess {
+    #private;
+    /** @internal */
+    constructor(symbol: symbol);
+    /** Evaluates the given Deno code in the REPL environment and returns
+     * the result.
+     *
+     * Return values have to be serializable - objects such as user defined
+     * classes will be returned as plain objects with their properties. Many
+     * built-in types such as `Map`, `Set`, and `Date` are supported and will be
+     * returned as their respective types.
+     *
+     * @example Evaluate code in the REPL
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const repl = await sandbox.deno.repl();
+     * const result = await repl.eval("1 + 1");
+     * console.log(result); // 2
+     * ```
+     */
+    eval<T = unknown>(code: string): Promise<T>;
+    /** Calls a function in the REPL environment with the given arguments. The
+     * `fn` parameter must either be a function defined in the REPL, or a function
+     * expression that can be evaluated in the REPL, such as `(a, b) => a + b` or
+     * `function (a, b) { return a + b; }`.
+     *
+     * @example Call a function in the REPL
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * await using repl = await sandbox.deno.repl();
+     * await repl.eval("function add(a, b) { return a + b; }");
+     * const result = await repl.call("add", 1, 2);
+     * console.log(result); // 3
+     * ```
+     *
+     * @example Call an anonymous function in the REPL
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     *
+     * await using sandbox = await Sandbox.create();
+     * const repl = await sandbox.deno.repl();
+     * const result = await repl.call("(a, b) => a + b", 1, 2);
+     * console.log(result); // 3
+     * ```
+     */
+    call<T = unknown>(fn: string, ...args: unknown[]): Promise<T>;
+    /** Closes the REPL instance. */
+    close(): Promise<void>;
+    /** Disposes the JS REPL instance. */
+    [Symbol.asyncDispose](): Promise<void>;
+}
+/** The result of deploy operation. */
+export interface Build {
+    /** The ID of the build */
+    id: string;
+    /** The promise that resolves when the build is complete. This promise resolves to the revision of the build. */
+    done: Promise<Revision>;
+    /** An async iterable of build logs */
+    logs(): AsyncIterable<BuildLog>;
+}
+/**
+ * Options for building an app using {@linkcode SandboxDeno.deploy}.
+ */
+export type BuildOptions = {
+    /**
+     * The entrypoint file path relative to the `path` option.
+     *
+     * @default {"main.ts"}
+     */
+    entrypoint?: string;
+    /** Arguments to pass to the entrypoint script. */
+    args?: string[];
+} & ({
+    /**
+     * The build mode "none". In this mode, the code at the specified path is
+     * deployed as is.
+     */
+    mode?: "none";
+} | {
+    /**
+     * The build mode "local". In this mode, the code is built locally
+     * in the sandbox using the same build process as the Deno Deploy service.
+     *
+     * You can also specify other options in this mode, such as `frameworkPreset`,
+     * `installCommand`, `buildCommand`, `buildDirectory`, and `env`.
+     */
+    mode?: "local";
+    /**
+     * The framework preset to use for the build.
+     *
+     * @default {""}
+     */
+    frameworkPreset?: "" | "astro" | "fresh" | "lume" | "nextjs" | "nuxt" | "remix" | "solidstart" | "sveltekit" | "tanstackstart";
+    /**
+     * The install command to run before the build.
+     */
+    installCommand?: string;
+    /**
+     * The build command to run before deployment.
+     */
+    buildCommand?: string;
+    /**
+     * The build directory to use as the deployment root.
+     */
+    buildDirectory?: string;
+});
+/** Options for deploying an app using {@linkcode SandboxDeno.deploy}. */
+export interface DeployOptions {
+    /** The path to the directory to deploy
+     *
+     * If the path is relative, it is relative to /home/app. If the path is absolute, it is used as is.
+     *
+     * @default {"."}
+     */
+    path?: string;
+    /**
+     * Whether to deploy in production mode.
+     *
+     * @default {true}
+     */
+    production?: boolean;
+    /**
+     * Whether to deploy a preview deployment.
+     *
+     * @default {false}
+     */
+    preview?: boolean;
+    /**
+     * Build options to use.
+     *
+     * If not specified the specified path is deployed as is (equivalent to mode "none").
+     */
+    build?: BuildOptions;
+}
+export declare class SandboxDenoImpl implements SandboxDeno {
+    #private;
+    constructor(options: {
+        client: SandboxRpcClient;
+        apiEndpoint: string;
+        token: string;
+        org: string | undefined;
+        sandboxId: string;
+    });
+    run(options: DenoRunOptions): Promise<DenoProcess>;
+    eval<T = unknown>(code: string): Promise<T>;
+    repl(options?: DenoReplOptions): Promise<DenoRepl>;
+    deploy(app: string, options?: DeployOptions): Promise<Build>;
+}
+export declare function maybeHandleDenoProcessMessage(message: JsonRpcNotification): boolean;
+//# sourceMappingURL=deno.d.ts.map

@@ -1,0 +1,1663 @@
+import { z } from "zod";
+export declare function errorize(err: unknown): Error;
+export declare const errorSchema: z.ZodCodec<z.ZodObject<{
+    constructorName: z.ZodString;
+    message: z.ZodString;
+    code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+    stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+    cause: z.ZodType<Error | null>;
+    errors: z.ZodType<Error[] | null>;
+    name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+    suppressed: z.ZodType<Error | null>;
+    error: z.ZodType<Error | null>;
+}, z.core.$strip>, z.ZodCustom<Error, Error>>;
+export declare function resultSchema<T>(schema: z.ZodType<T>): z.ZodUnion<[z.ZodObject<{
+    error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+        constructorName: z.ZodString;
+        message: z.ZodString;
+        code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+        stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+        cause: z.ZodType<Error | null>;
+        errors: z.ZodType<Error[] | null>;
+        name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+        suppressed: z.ZodType<Error | null>;
+        error: z.ZodType<Error | null>;
+    }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+}, z.core.$strip>, z.ZodObject<{
+    ok: z.ZodType<T, unknown, z.core.$ZodTypeInternals<T, unknown>>;
+}, z.core.$strip>]>;
+export declare const writeFileOptionsSchema: z.ZodObject<{
+    append: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+    create: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+    createNew: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+    mode: z.ZodOptional<z.ZodType<number, number | null, z.core.$ZodTypeInternals<number, number | null>>>;
+}, z.core.$strip>;
+export declare const sandboxServiceSchema: {
+    abort: {
+        input: z.ZodObject<{
+            abortId: z.ZodNumber;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    readFile: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+            abortId: z.ZodOptional<z.ZodType<number, number | null, z.core.$ZodTypeInternals<number, number | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<Uint8Array<ArrayBuffer>, unknown, z.core.$ZodTypeInternals<Uint8Array<ArrayBuffer>, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    readTextFile: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+            abortId: z.ZodOptional<z.ZodType<number, number | null, z.core.$ZodTypeInternals<number, number | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    writeFile: {
+        input: z.ZodIntersection<z.ZodObject<{
+            path: z.ZodString;
+            abortId: z.ZodOptional<z.ZodType<number, number | null, z.core.$ZodTypeInternals<number, number | null>>>;
+            options: z.ZodOptional<z.ZodType<{
+                append?: boolean | undefined;
+                create?: boolean | undefined;
+                createNew?: boolean | undefined;
+                mode?: number | undefined;
+            }, {
+                append?: boolean | null | undefined;
+                create?: boolean | null | undefined;
+                createNew?: boolean | null | undefined;
+                mode?: number | null | undefined;
+            } | null, z.core.$ZodTypeInternals<{
+                append?: boolean | undefined;
+                create?: boolean | undefined;
+                createNew?: boolean | undefined;
+                mode?: number | undefined;
+            }, {
+                append?: boolean | null | undefined;
+                create?: boolean | null | undefined;
+                createNew?: boolean | null | undefined;
+                mode?: number | null | undefined;
+            } | null>>>;
+        }, z.core.$strip>, z.ZodUnion<readonly [z.ZodObject<{
+            content: z.ZodCodec<z.ZodString, z.ZodCustom<Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            contentStreamId: z.ZodNumber;
+        }, z.core.$strip>]>>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    writeTextFile: {
+        input: z.ZodIntersection<z.ZodObject<{
+            path: z.ZodString;
+            abortId: z.ZodOptional<z.ZodType<number, number | null, z.core.$ZodTypeInternals<number, number | null>>>;
+            options: z.ZodOptional<z.ZodType<{
+                append?: boolean | undefined;
+                create?: boolean | undefined;
+                createNew?: boolean | undefined;
+                mode?: number | undefined;
+            }, {
+                append?: boolean | null | undefined;
+                create?: boolean | null | undefined;
+                createNew?: boolean | null | undefined;
+                mode?: number | null | undefined;
+            } | null, z.core.$ZodTypeInternals<{
+                append?: boolean | undefined;
+                create?: boolean | undefined;
+                createNew?: boolean | undefined;
+                mode?: number | undefined;
+            }, {
+                append?: boolean | null | undefined;
+                create?: boolean | null | undefined;
+                createNew?: boolean | null | undefined;
+                mode?: number | null | undefined;
+            } | null>>>;
+        }, z.core.$strip>, z.ZodUnion<readonly [z.ZodObject<{
+            content: z.ZodString;
+        }, z.core.$strip>, z.ZodObject<{
+            contentStreamId: z.ZodNumber;
+        }, z.core.$strip>]>>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    readDir: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                name: string;
+                isFile: boolean;
+                isDirectory: boolean;
+                isSymlink: boolean;
+            }[], unknown, z.core.$ZodTypeInternals<{
+                name: string;
+                isFile: boolean;
+                isDirectory: boolean;
+                isSymlink: boolean;
+            }[], unknown>>;
+        }, z.core.$strip>]>;
+    };
+    remove: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+            options: z.ZodOptional<z.ZodType<{
+                recursive?: boolean | undefined;
+            }, {
+                recursive?: boolean | null | undefined;
+            } | null, z.core.$ZodTypeInternals<{
+                recursive?: boolean | undefined;
+            }, {
+                recursive?: boolean | null | undefined;
+            } | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    mkdir: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+            options: z.ZodOptional<z.ZodType<{
+                recursive?: boolean | undefined;
+                mode?: number | undefined;
+            }, {
+                recursive?: boolean | null | undefined;
+                mode?: number | null | undefined;
+            } | null, z.core.$ZodTypeInternals<{
+                recursive?: boolean | undefined;
+                mode?: number | undefined;
+            }, {
+                recursive?: boolean | null | undefined;
+                mode?: number | null | undefined;
+            } | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    rename: {
+        input: z.ZodObject<{
+            oldPath: z.ZodString;
+            newPath: z.ZodString;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    stat: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                isFile: boolean;
+                isDirectory: boolean;
+                isSymlink: boolean;
+                size: number;
+                mtime: Date;
+                atime: Date;
+                birthtime: Date;
+                ctime: Date;
+                mode: number;
+                dev: number;
+                ino: number;
+                nlink: number;
+                uid: number;
+                gid: number;
+                rdev: number;
+                blksize: number;
+                blocks: number;
+                isBlockDevice: boolean;
+                isCharDevice: boolean;
+                isFifo: boolean;
+                isSocket: boolean;
+            }, unknown, z.core.$ZodTypeInternals<{
+                isFile: boolean;
+                isDirectory: boolean;
+                isSymlink: boolean;
+                size: number;
+                mtime: Date;
+                atime: Date;
+                birthtime: Date;
+                ctime: Date;
+                mode: number;
+                dev: number;
+                ino: number;
+                nlink: number;
+                uid: number;
+                gid: number;
+                rdev: number;
+                blksize: number;
+                blocks: number;
+                isBlockDevice: boolean;
+                isCharDevice: boolean;
+                isFifo: boolean;
+                isSocket: boolean;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    chmod: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+            mode: z.ZodNumber;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    chown: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+            uid: z.ZodDefault<z.ZodNullable<z.ZodType<number, unknown, z.core.$ZodTypeInternals<number, unknown>>>>;
+            gid: z.ZodDefault<z.ZodNullable<z.ZodType<number, unknown, z.core.$ZodTypeInternals<number, unknown>>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    copyFile: {
+        input: z.ZodObject<{
+            fromPath: z.ZodString;
+            toPath: z.ZodString;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    link: {
+        input: z.ZodObject<{
+            target: z.ZodString;
+            path: z.ZodString;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    lstat: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                isFile: boolean;
+                isDirectory: boolean;
+                isSymlink: boolean;
+                size: number;
+                mtime: Date;
+                atime: Date;
+                birthtime: Date;
+                ctime: Date;
+                mode: number;
+                dev: number;
+                ino: number;
+                nlink: number;
+                uid: number;
+                gid: number;
+                rdev: number;
+                blksize: number;
+                blocks: number;
+                isBlockDevice: boolean;
+                isCharDevice: boolean;
+                isFifo: boolean;
+                isSocket: boolean;
+            }, unknown, z.core.$ZodTypeInternals<{
+                isFile: boolean;
+                isDirectory: boolean;
+                isSymlink: boolean;
+                size: number;
+                mtime: Date;
+                atime: Date;
+                birthtime: Date;
+                ctime: Date;
+                mode: number;
+                dev: number;
+                ino: number;
+                nlink: number;
+                uid: number;
+                gid: number;
+                rdev: number;
+                blksize: number;
+                blocks: number;
+                isBlockDevice: boolean;
+                isCharDevice: boolean;
+                isFifo: boolean;
+                isSocket: boolean;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    makeTempDir: {
+        input: z.ZodObject<{
+            options: z.ZodOptional<z.ZodType<{
+                dir?: string | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+            }, {
+                dir?: string | null | undefined;
+                prefix?: string | null | undefined;
+                suffix?: string | null | undefined;
+            } | null, z.core.$ZodTypeInternals<{
+                dir?: string | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+            }, {
+                dir?: string | null | undefined;
+                prefix?: string | null | undefined;
+                suffix?: string | null | undefined;
+            } | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    makeTempFile: {
+        input: z.ZodObject<{
+            options: z.ZodOptional<z.ZodType<{
+                dir?: string | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+            }, {
+                dir?: string | null | undefined;
+                prefix?: string | null | undefined;
+                suffix?: string | null | undefined;
+            } | null, z.core.$ZodTypeInternals<{
+                dir?: string | undefined;
+                prefix?: string | undefined;
+                suffix?: string | undefined;
+            }, {
+                dir?: string | null | undefined;
+                prefix?: string | null | undefined;
+                suffix?: string | null | undefined;
+            } | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    readLink: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    realPath: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    symlink: {
+        input: z.ZodObject<{
+            target: z.ZodString;
+            path: z.ZodString;
+            options: z.ZodOptional<z.ZodType<{
+                type?: "file" | "dir" | "junction" | undefined;
+            }, {
+                type?: "file" | "dir" | "junction" | null | undefined;
+            } | null, z.core.$ZodTypeInternals<{
+                type?: "file" | "dir" | "junction" | undefined;
+            }, {
+                type?: "file" | "dir" | "junction" | null | undefined;
+            } | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    truncate: {
+        input: z.ZodObject<{
+            name: z.ZodString;
+            length: z.ZodOptional<z.ZodType<number, number | null, z.core.$ZodTypeInternals<number, number | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    umask: {
+        input: z.ZodObject<{
+            mask: z.ZodOptional<z.ZodType<number, number | null, z.core.$ZodTypeInternals<number, number | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<number, unknown, z.core.$ZodTypeInternals<number, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    utime: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+            atime: z.ZodCodec<z.ZodString, z.ZodDate>;
+            mtime: z.ZodCodec<z.ZodString, z.ZodDate>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    open: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+            options: z.ZodOptional<z.ZodType<{
+                read?: boolean | undefined;
+                write?: boolean | undefined;
+                append?: boolean | undefined;
+                truncate?: boolean | undefined;
+                create?: boolean | undefined;
+                createNew?: boolean | undefined;
+                mode?: number | undefined;
+            }, {
+                read?: boolean | null | undefined;
+                write?: boolean | null | undefined;
+                append?: boolean | null | undefined;
+                truncate?: boolean | null | undefined;
+                create?: boolean | null | undefined;
+                createNew?: boolean | null | undefined;
+                mode?: number | null | undefined;
+            } | null, z.core.$ZodTypeInternals<{
+                read?: boolean | undefined;
+                write?: boolean | undefined;
+                append?: boolean | undefined;
+                truncate?: boolean | undefined;
+                create?: boolean | undefined;
+                createNew?: boolean | undefined;
+                mode?: number | undefined;
+            }, {
+                read?: boolean | null | undefined;
+                write?: boolean | null | undefined;
+                append?: boolean | null | undefined;
+                truncate?: boolean | null | undefined;
+                create?: boolean | null | undefined;
+                createNew?: boolean | null | undefined;
+                mode?: number | null | undefined;
+            } | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                fileHandleId: number;
+            }, unknown, z.core.$ZodTypeInternals<{
+                fileHandleId: number;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    create: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                fileHandleId: number;
+            }, unknown, z.core.$ZodTypeInternals<{
+                fileHandleId: number;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    fileClose: {
+        input: z.ZodObject<{
+            fileHandleId: z.ZodNumber;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    fileLock: {
+        input: z.ZodObject<{
+            fileHandleId: z.ZodNumber;
+            exclusive: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    fileRead: {
+        input: z.ZodObject<{
+            fileHandleId: z.ZodNumber;
+            length: z.ZodNumber;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                data: Uint8Array<ArrayBuffer> | null;
+            }, unknown, z.core.$ZodTypeInternals<{
+                data: Uint8Array<ArrayBuffer> | null;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    fileSeek: {
+        input: z.ZodObject<{
+            fileHandleId: z.ZodNumber;
+            offset: z.ZodUnion<readonly [z.ZodNumber, z.ZodCodec<z.ZodString, z.ZodBigInt>]>;
+            whence: z.ZodNumber;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                position: number;
+            }, unknown, z.core.$ZodTypeInternals<{
+                position: number;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    fileStat: {
+        input: z.ZodObject<{
+            fileHandleId: z.ZodNumber;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                isFile: boolean;
+                isDirectory: boolean;
+                isSymlink: boolean;
+                size: number;
+                mtime: Date;
+                atime: Date;
+                birthtime: Date;
+                ctime: Date;
+                mode: number;
+                dev: number;
+                ino: number;
+                nlink: number;
+                uid: number;
+                gid: number;
+                rdev: number;
+                blksize: number;
+                blocks: number;
+                isBlockDevice: boolean;
+                isCharDevice: boolean;
+                isFifo: boolean;
+                isSocket: boolean;
+            }, unknown, z.core.$ZodTypeInternals<{
+                isFile: boolean;
+                isDirectory: boolean;
+                isSymlink: boolean;
+                size: number;
+                mtime: Date;
+                atime: Date;
+                birthtime: Date;
+                ctime: Date;
+                mode: number;
+                dev: number;
+                ino: number;
+                nlink: number;
+                uid: number;
+                gid: number;
+                rdev: number;
+                blksize: number;
+                blocks: number;
+                isBlockDevice: boolean;
+                isCharDevice: boolean;
+                isFifo: boolean;
+                isSocket: boolean;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    fileSync: {
+        input: z.ZodObject<{
+            fileHandleId: z.ZodNumber;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    fileSyncData: {
+        input: z.ZodObject<{
+            fileHandleId: z.ZodNumber;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    fileTruncate: {
+        input: z.ZodObject<{
+            fileHandleId: z.ZodNumber;
+            len: z.ZodOptional<z.ZodType<number, number | null, z.core.$ZodTypeInternals<number, number | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    fileUnlock: {
+        input: z.ZodObject<{
+            fileHandleId: z.ZodNumber;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    fileUtime: {
+        input: z.ZodObject<{
+            fileHandleId: z.ZodNumber;
+            atime: z.ZodCodec<z.ZodString, z.ZodDate>;
+            mtime: z.ZodCodec<z.ZodString, z.ZodDate>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    fileWrite: {
+        input: z.ZodObject<{
+            fileHandleId: z.ZodNumber;
+            data: z.ZodCodec<z.ZodString, z.ZodCustom<Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                bytesWritten: number;
+            }, unknown, z.core.$ZodTypeInternals<{
+                bytesWritten: number;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    walk: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+            maxDepth: z.ZodOptional<z.ZodType<number, number | null, z.core.$ZodTypeInternals<number, number | null>>>;
+            includeFiles: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+            includeDirs: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+            includeSymlinks: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+            followSymlinks: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+            canonicalize: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+            exts: z.ZodOptional<z.ZodType<string[], string[] | null, z.core.$ZodTypeInternals<string[], string[] | null>>>;
+            match: z.ZodOptional<z.ZodType<RegExp[], {
+                source: string;
+                flags: string;
+            }[] | null, z.core.$ZodTypeInternals<RegExp[], {
+                source: string;
+                flags: string;
+            }[] | null>>>;
+            skip: z.ZodOptional<z.ZodType<RegExp[], {
+                source: string;
+                flags: string;
+            }[] | null, z.core.$ZodTypeInternals<RegExp[], {
+                source: string;
+                flags: string;
+            }[] | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                streamId: number;
+            }, unknown, z.core.$ZodTypeInternals<{
+                streamId: number;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    expandGlob: {
+        input: z.ZodObject<{
+            glob: z.ZodString;
+            extended: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+            globstar: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+            caseInsensitive: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+            root: z.ZodOptional<z.ZodType<string, string | null, z.core.$ZodTypeInternals<string, string | null>>>;
+            exclude: z.ZodOptional<z.ZodType<string[], string[] | null, z.core.$ZodTypeInternals<string[], string[] | null>>>;
+            includeDirs: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+            followSymlinks: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+            canonicalize: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                streamId: number;
+            }, unknown, z.core.$ZodTypeInternals<{
+                streamId: number;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    spawn: {
+        input: z.ZodObject<{
+            command: z.ZodString;
+            args: z.ZodOptional<z.ZodType<string[], string[] | null, z.core.$ZodTypeInternals<string[], string[] | null>>>;
+            env: z.ZodOptional<z.ZodType<Record<string, string>, Record<string, string> | null, z.core.$ZodTypeInternals<Record<string, string>, Record<string, string> | null>>>;
+            clearEnv: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+            cwd: z.ZodOptional<z.ZodType<string, string | null, z.core.$ZodTypeInternals<string, string | null>>>;
+            stdinStreamId: z.ZodOptional<z.ZodType<number, number | null, z.core.$ZodTypeInternals<number, number | null>>>;
+            stdout: z.ZodEnum<{
+                null: "null";
+                piped: "piped";
+            }>;
+            stderr: z.ZodEnum<{
+                null: "null";
+                piped: "piped";
+            }>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                pid: number;
+                stdoutStreamId: number | null;
+                stderrStreamId: number | null;
+            }, unknown, z.core.$ZodTypeInternals<{
+                pid: number;
+                stdoutStreamId: number | null;
+                stderrStreamId: number | null;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    processWait: {
+        input: z.ZodObject<{
+            pid: z.ZodNumber;
+            vscode: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                success: boolean;
+                code: number;
+                signal: string | null;
+                oom: "high-confidence" | "low-confidence" | null;
+            }, unknown, z.core.$ZodTypeInternals<{
+                success: boolean;
+                code: number;
+                signal: string | null;
+                oom: "high-confidence" | "low-confidence" | null;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    processKill: {
+        input: z.ZodObject<{
+            pid: z.ZodNumber;
+            signal: z.ZodOptional<z.ZodType<string, string | null, z.core.$ZodTypeInternals<string, string | null>>>;
+            vscode: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    spawnDeno: {
+        input: z.ZodIntersection<z.ZodObject<{
+            env: z.ZodOptional<z.ZodType<Record<string, string>, Record<string, string> | null, z.core.$ZodTypeInternals<Record<string, string>, Record<string, string> | null>>>;
+            clearEnv: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+            cwd: z.ZodOptional<z.ZodType<string, string | null, z.core.$ZodTypeInternals<string, string | null>>>;
+            stdinStreamId: z.ZodOptional<z.ZodType<number, number | null, z.core.$ZodTypeInternals<number, number | null>>>;
+            stdout: z.ZodEnum<{
+                null: "null";
+                piped: "piped";
+            }>;
+            stderr: z.ZodEnum<{
+                null: "null";
+                piped: "piped";
+            }>;
+            scriptArgs: z.ZodOptional<z.ZodType<string[], string[] | null, z.core.$ZodTypeInternals<string[], string[] | null>>>;
+        }, z.core.$strip>, z.ZodUnion<readonly [z.ZodObject<{
+            entrypoint: z.ZodString;
+            watch: z.ZodOptional<z.ZodType<boolean | string[], boolean | string[] | null, z.core.$ZodTypeInternals<boolean | string[], boolean | string[] | null>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            code: z.ZodString;
+            extension: z.ZodEnum<{
+                js: "js";
+                cjs: "cjs";
+                mjs: "mjs";
+                ts: "ts";
+                cts: "cts";
+                mts: "mts";
+                jsx: "jsx";
+                tsx: "tsx";
+            }>;
+        }, z.core.$strip>]>>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                pid: number;
+                stdoutStreamId: number | null;
+                stderrStreamId: number | null;
+                watcherId: string | null;
+            }, unknown, z.core.$ZodTypeInternals<{
+                pid: number;
+                stdoutStreamId: number | null;
+                stderrStreamId: number | null;
+                watcherId: string | null;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    denoHttpWait: {
+        input: z.ZodObject<{
+            pid: z.ZodNumber;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<boolean, unknown, z.core.$ZodTypeInternals<boolean, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    spawnDenoRepl: {
+        input: z.ZodObject<{
+            env: z.ZodOptional<z.ZodType<Record<string, string>, Record<string, string> | null, z.core.$ZodTypeInternals<Record<string, string>, Record<string, string> | null>>>;
+            clearEnv: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+            cwd: z.ZodOptional<z.ZodType<string, string | null, z.core.$ZodTypeInternals<string, string | null>>>;
+            stdinStreamId: z.ZodOptional<z.ZodType<number, number | null, z.core.$ZodTypeInternals<number, number | null>>>;
+            stdout: z.ZodEnum<{
+                null: "null";
+                piped: "piped";
+            }>;
+            stderr: z.ZodEnum<{
+                null: "null";
+                piped: "piped";
+            }>;
+            scriptArgs: z.ZodOptional<z.ZodType<string[], string[] | null, z.core.$ZodTypeInternals<string[], string[] | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                pid: number;
+                stdoutStreamId: number | null;
+                stderrStreamId: number | null;
+            }, unknown, z.core.$ZodTypeInternals<{
+                pid: number;
+                stdoutStreamId: number | null;
+                stderrStreamId: number | null;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    denoReplClose: {
+        input: z.ZodObject<{
+            pid: z.ZodNumber;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    denoReplEval: {
+        input: z.ZodObject<{
+            pid: z.ZodNumber;
+            code: z.ZodString;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    denoReplCall: {
+        input: z.ZodObject<{
+            pid: z.ZodNumber;
+            fn: z.ZodString;
+            args: z.ZodArray<z.ZodUnknown>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    fetch: {
+        input: z.ZodObject<{
+            url: z.ZodString;
+            method: z.ZodString;
+            headers: z.ZodArray<z.ZodTuple<[z.ZodString, z.ZodString], null>>;
+            redirect: z.ZodEnum<{
+                follow: "follow";
+                manual: "manual";
+            }>;
+            abortId: z.ZodOptional<z.ZodType<number, number | null, z.core.$ZodTypeInternals<number, number | null>>>;
+            bodyStreamId: z.ZodOptional<z.ZodType<number, number | null, z.core.$ZodTypeInternals<number, number | null>>>;
+            pid: z.ZodOptional<z.ZodType<number, number | null, z.core.$ZodTypeInternals<number, number | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                status: number;
+                statusText: string;
+                headers: [string, string][];
+                bodyStreamId: number | null;
+            }, unknown, z.core.$ZodTypeInternals<{
+                status: number;
+                statusText: string;
+                headers: [string, string][];
+                bodyStreamId: number | null;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    exposeHttp: {
+        input: z.ZodIntersection<z.ZodObject<{
+            domain: z.ZodString;
+        }, z.core.$strip>, z.ZodUnion<readonly [z.ZodObject<{
+            port: z.ZodNumber;
+        }, z.core.$strip>, z.ZodObject<{
+            pid: z.ZodNumber;
+        }, z.core.$strip>]>>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    vscode: {
+        input: z.ZodObject<{
+            path: z.ZodString;
+            extensions: z.ZodArray<z.ZodString>;
+            env: z.ZodOptional<z.ZodType<Record<string, string>, Record<string, string> | null, z.core.$ZodTypeInternals<Record<string, string>, Record<string, string> | null>>>;
+            preview: z.ZodOptional<z.ZodType<string, string | null, z.core.$ZodTypeInternals<string, string | null>>>;
+            disableStopButton: z.ZodOptional<z.ZodType<boolean, boolean | null, z.core.$ZodTypeInternals<boolean, boolean | null>>>;
+            editorSettings: z.ZodOptional<z.ZodType<Record<string, any>, Record<string, any> | null, z.core.$ZodTypeInternals<Record<string, any>, Record<string, any> | null>>>;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<{
+                pid: number;
+                port: number;
+                stdoutStreamId: number;
+                stderrStreamId: number;
+            }, unknown, z.core.$ZodTypeInternals<{
+                pid: number;
+                port: number;
+                stdoutStreamId: number;
+                stderrStreamId: number;
+            }, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    envGet: {
+        input: z.ZodObject<{
+            key: z.ZodString;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<string | undefined, unknown, z.core.$ZodTypeInternals<string | undefined, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    envSet: {
+        input: z.ZodObject<{
+            key: z.ZodString;
+            value: z.ZodString;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    envToObject: {
+        input: z.ZodObject<{}, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<Record<string, string>, unknown, z.core.$ZodTypeInternals<Record<string, string>, unknown>>;
+        }, z.core.$strip>]>;
+    };
+    envDelete: {
+        input: z.ZodObject<{
+            key: z.ZodString;
+        }, z.core.$strip>;
+        output: z.ZodUnion<[z.ZodObject<{
+            error: z.ZodNonOptional<z.ZodCodec<z.ZodObject<{
+                constructorName: z.ZodString;
+                message: z.ZodString;
+                code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                cause: z.ZodType<Error | null>;
+                errors: z.ZodType<Error[] | null>;
+                name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+                suppressed: z.ZodType<Error | null>;
+                error: z.ZodType<Error | null>;
+            }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+        }, z.core.$strip>, z.ZodObject<{
+            ok: z.ZodType<null, unknown, z.core.$ZodTypeInternals<null, unknown>>;
+        }, z.core.$strip>]>;
+    };
+};
+export type SandboxServiceSchema = typeof sandboxServiceSchema;
+export declare const streamStartSchema: z.ZodObject<{
+    streamId: z.ZodNumber;
+}, z.core.$strip>;
+export type StreamStart = z.infer<typeof streamStartSchema>;
+export declare const streamEnqueueSchema: z.ZodObject<{
+    streamId: z.ZodNumber;
+    data: z.ZodCodec<z.ZodString, z.ZodCustom<Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>>>;
+}, z.core.$strip>;
+export type StreamEnqueue = z.infer<typeof streamEnqueueSchema>;
+export declare const streamEndSchema: z.ZodObject<{
+    streamId: z.ZodNumber;
+}, z.core.$strip>;
+export type StreamEnd = z.infer<typeof streamEndSchema>;
+export declare const streamErrorSchema: z.ZodObject<{
+    streamId: z.ZodNumber;
+    error: z.ZodNullable<z.ZodCodec<z.ZodObject<{
+        constructorName: z.ZodString;
+        message: z.ZodString;
+        code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+        stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+        cause: z.ZodType<Error | null>;
+        errors: z.ZodType<Error[] | null>;
+        name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+        suppressed: z.ZodType<Error | null>;
+        error: z.ZodType<Error | null>;
+    }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+}, z.core.$strip>;
+export type StreamError = z.infer<typeof streamErrorSchema>;
+export declare const streamCancelSchema: z.ZodObject<{
+    streamId: z.ZodNumber;
+    reason: z.ZodNullable<z.ZodCodec<z.ZodObject<{
+        constructorName: z.ZodString;
+        message: z.ZodString;
+        code: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+        stack: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+        cause: z.ZodType<Error | null>;
+        errors: z.ZodType<Error[] | null>;
+        name: z.ZodDefault<z.ZodNullable<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>>;
+        suppressed: z.ZodType<Error | null>;
+        error: z.ZodType<Error | null>;
+    }, z.core.$strip>, z.ZodCustom<Error, Error>>>;
+}, z.core.$strip>;
+export type StreamCancel = z.infer<typeof streamCancelSchema>;
+export declare const denoWatcherRestartSchema: z.ZodObject<{
+    watcherId: z.ZodString;
+}, z.core.$strip>;
+export type DenoWatcherRestart = z.infer<typeof denoWatcherRestartSchema>;
+//# sourceMappingURL=schema.d.ts.map

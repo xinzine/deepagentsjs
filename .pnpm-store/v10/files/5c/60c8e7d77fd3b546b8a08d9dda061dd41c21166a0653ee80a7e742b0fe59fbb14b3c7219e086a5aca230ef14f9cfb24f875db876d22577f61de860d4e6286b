@@ -1,0 +1,157 @@
+import { KillController, KillSignal, type KillSignalListener } from "./kill_signal.js";
+export { KillController, KillSignal, type KillSignalListener };
+/** Result of a {@linkcode SandboxCommandBuilder} execution. */
+export interface SandboxCommandResult {
+    status: ChildProcessStatus;
+    stdoutText: string | null;
+    stderrText: string | null;
+    stdout: Uint8Array | null;
+    stderr: Uint8Array | null;
+}
+interface ChildProcessStatus {
+    success: boolean;
+    code: number;
+    oom: boolean;
+}
+interface SandboxLikeChild {
+    output(): Promise<SandboxCommandResult>;
+    kill(signal?: string): Promise<void>;
+}
+interface SandboxLike {
+    spawn(command: string, options: {
+        args?: string[];
+        stdout?: "piped" | "inherit" | "null";
+        stderr?: "piped" | "inherit" | "null";
+        env: Record<string, string>;
+        cwd?: string;
+    }): Promise<SandboxLikeChild>;
+}
+/** Kind of behavior to use for stderr or stdout. */
+export type ShellPipeKind = "inherit" | "piped" | "null";
+/**
+ * A shell command created from a template literal that provides convenient
+ * methods for execution and output handling.
+ *
+ * Created by calling {@linkcode Sandbox.sh} with template literal syntax:
+ *
+ * ```ts
+ * import { Sandbox } from "@deno/sandbox";
+ * await using sandbox = await Sandbox.create();
+ * const message = "hello";
+ * const cmd = sandbox.sh`echo ${message}`;
+ * const text = await cmd.text();
+ * ```
+ */
+export declare class SandboxCommandBuilder {
+    #private;
+    /** @internal */
+    constructor(sandbox: SandboxLike, templateStrings: TemplateStringsArray, substitutions: unknown[]);
+    /**
+     * Returns a new SandboxCommandBuilder that won't throw on non-zero exit codes.
+     * Use this when you want to handle command failures manually.
+     *
+     * @example
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * await using sandbox = await Sandbox.create();
+     * const result = await sandbox.sh`exit 1`.noThrow();
+     * if (!result.status.success) {
+     *   console.log("Command failed with code:", result.status.code);
+     * }
+     * ```
+     */
+    noThrow(value?: boolean): SandboxCommandBuilder;
+    /**
+     * Whether to enable sudo privileges.
+     */
+    sudo(enable?: boolean): SandboxCommandBuilder;
+    /**
+     * Sets the cwd for the command.
+     */
+    cwd(path: string): SandboxCommandBuilder;
+    /**
+     * Sets the environment variables for the command.
+     */
+    env(name: string, value: string): SandboxCommandBuilder;
+    /**
+     * Behavior to use for stdout.
+     *
+     * @remarks This is automatically set when calling certain methods
+     * like `.text()`.
+     */
+    stdout(kind: ShellPipeKind): SandboxCommandBuilder;
+    /**
+     * Behavior to use for stderr.
+     */
+    stderr(kind: ShellPipeKind): SandboxCommandBuilder;
+    /**
+     * Sets the kill signal that will be passed to all commands
+     * created with this instance or derived instances.
+     *
+     * @example
+     * ```ts
+     * import { KillController, Sandbox } from "@deno/sandbox";
+     * await using sandbox = await Sandbox.create();
+     * const controller = new KillController();
+     * const cmd = sandbox.sh`sleep 10`.signal(controller.signal);
+     * const promise = cmd.text();
+     * controller.kill("SIGTERM"); // Kill the process with SIGTERM
+     * await promise; // Will complete once process exits
+     * ```
+     */
+    signal(killOrAbortSignal: KillSignal | AbortSignal): SandboxCommandBuilder;
+    /**
+     * Execute the command and return only the stdout text.
+     *
+     * @example
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * await using sandbox = await Sandbox.create();
+     * const output = await sandbox.sh`echo "hello world"`.text();
+     * console.log(output); // "hello world\n"
+     * ```
+     */
+    text(): Promise<string>;
+    /**
+     * Execute the command and parse stdout as JSON.
+     *
+     * @example
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * await using sandbox = await Sandbox.create();
+     * const data = await sandbox.sh`echo '{"key": "value"}'`.json<{key: string}>();
+     * console.log(data.key); // "value"
+     * ```
+     */
+    json<T = unknown>(): Promise<T>;
+    /**
+     * Execute the command and return the full result object containing
+     * status, stdout, and stderr.
+     *
+     * @example
+     * ```ts
+     * import { Sandbox } from "@deno/sandbox";
+     * await using sandbox = await Sandbox.create();
+     * const result = await sandbox.sh`echo "hello"`
+     *   .stdout("piped")
+     *   .result();
+     * console.log(result.status.success); // true
+     * console.log(result.stdout); // Uint8Array
+     * console.log(result.stdoutText); // "hello\n"
+     * ```
+     */
+    result(): Promise<SandboxCommandResult>;
+    spawn(): Promise<SandboxCommandChild>;
+    /**
+     * Makes SandboxCommandBuilder thenable so it can be awaited directly.
+     * When awaited, returns the full result object.
+     */
+    then<TResult1 = SandboxCommandResult, TResult2 = never>(onfulfilled?: ((value: SandboxCommandResult) => TResult1 | PromiseLike<TResult1>) | null, onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null): Promise<TResult1 | TResult2>;
+}
+export declare class SandboxCommandChild {
+    #private;
+    /** @internal */
+    constructor(symbol: symbol, childOrResult: SandboxLikeChild | SandboxCommandResult, killSignalUnsubscribe: () => void);
+    output(): Promise<SandboxCommandResult>;
+}
+//# sourceMappingURL=mod.d.ts.map
